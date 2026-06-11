@@ -17,5 +17,6 @@ Este repositorio contiene el código fuente y la documentación para la platafor
 - [Definición del MVP](./docs/MVP_Definicion.md)
 - [Casos de Uso](./docs/Casos_de_Uso.md)
 - [Contexto del Dataset](./docs/Dataset_Contexto.md)
+- [System Prompt de IA](./docs/Prompt_IA.md)
 ---
 *Hackathon No-Country - Desafío B2G*
