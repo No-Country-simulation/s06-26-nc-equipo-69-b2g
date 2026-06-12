@@ -1,0 +1,31 @@
+{
+  "name": "app-bit-b2g",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.11.0"
+  },
+  "scripts": {
+    "dev": "turbo dev --parallel",
+    "dev:frontend": "turbo dev --filter=frontend",
+    "dev:backend": "turbo dev --filter=backend",
+    "dev:local": "turbo dev --parallel --filter=frontend --filter=backend",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "check": "turbo check",
+    "test": "turbo test --continue",
+    "db:migration:new": "supabase migration new",
+    "db:migrate": "supabase db push",
+    "db:migrate:status": "supabase migration list",
+    "db:reset": "supabase db reset",
+    "db:pull": "supabase db pull",
+    "format": "prettier --check package.json pnpm-workspace.yaml turbo.json README.md \".github/**/*.{md,yml}\" \"docs/{workflow,deploy,mcp,CONTRIBUTING}.md\" \"{backend,frontend}/package.json\""
+  },
+  "devDependencies": {
+    "prettier": "^3.8.4",
+    "supabase": "^2.106.0",
+    "turbo": "^2.6.3"
+  }
+}

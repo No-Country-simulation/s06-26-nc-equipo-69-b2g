@@ -1,0 +1,45 @@
+name: Feature request
+description: Proponer una mejora o funcionalidad.
+title: "feat(scope): "
+labels: ["type:feature", "status:needs-triage"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: Busque issues existentes y no es duplicado.
+          required: true
+        - label: Entiendo que el issue necesita `status:approved` antes de abrir un PR.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Que dolor o necesidad resuelve.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: Como deberia funcionar desde la perspectiva del usuario.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area afectada
+      options:
+        - Frontend
+        - Backend
+        - Documentacion
+        - CI/Workflow
+        - Infra/Deploy
+        - Otro
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
