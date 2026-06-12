@@ -1,0 +1,48 @@
+name: Bug report
+description: Reportar un error reproducible.
+title: "fix(scope): "
+labels: ["type:bug", "status:needs-triage"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: Busque issues existentes y no es duplicado.
+          required: true
+        - label: Entiendo que el issue necesita `status:approved` antes de abrir un PR.
+          required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripcion
+      description: Que falla y donde se observa.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Resultado actual
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs o contexto adicional
+      render: shell

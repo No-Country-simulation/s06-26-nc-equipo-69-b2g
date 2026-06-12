@@ -1,27 +1,43 @@
-## Descripción
+## Convenciones
 
-[Explica brevemente qué hace este PR y por qué es necesario]
+- Titulo del PR: Conventional Commits, ej. `feat(auth): agregar login con Supabase`.
+- Rama: `<type>/<issue-id>-descripcion-corta`, ej. `feat/42-agregar-login`.
+- Issue vinculado: debe estar aprobado antes de mergear.
 
-## Tipo de cambio
+## Issue vinculado
 
-- [ ] Bugfix (corrección de error)
-- [ ] Feature (nueva funcionalidad)
-- [ ] Refactor (cambio que no agrega feature ni corrige bug)
-- [ ] Style (cambios de formato, lint, etc.)
-- [ ] Docs (cambios en documentación)
-- [ ] Chore (cambios en build, dependencias, CI, etc.)
+Closes #
 
-## ¿Cómo se probó?
+## Tipo de PR
 
-- [ ] Tests unitarios
-- [ ] Tests de integración
-- [ ] Manual
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Documentation only
+- [ ] Code refactoring
+- [ ] Maintenance/tooling
+- [ ] Breaking change
 
-## Screenshots / Logs (si aplica)
+## Resumen
+
+-
+
+## Cambios principales
+
+| Archivo        | Cambio            |
+| -------------- | ----------------- |
+| `path/to/file` | Descripcion breve |
+
+## Verificacion
+
+- [ ] `pnpm check`
+- [ ] `pnpm lint`
+- [ ] `pnpm test`
+- [ ] `pnpm build`
 
 ## Checklist
 
-- [ ] Mi código sigue el estilo del proyecto
-- [ ] Actualicé la documentación si es necesario
-- [ ] Agregué tests si es necesario
-- [ ] Los tests pasan localmente
+- [ ] El PR vincula un issue aprobado.
+- [ ] El PR tiene exactamente un label `type:*`.
+- [ ] Use pnpm, no npm/npx/yarn.
+- [ ] Actualice documentacion si cambio comportamiento o workflow.
+- [ ] No agregue secretos ni credenciales reales.
