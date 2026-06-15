@@ -35,7 +35,7 @@ export default function MapboxMap() {
       }
     } catch (err) {
       console.error("Error al inicializar Mapbox:", err)
-      setTokenError(true)
+      setTimeout(() => setTokenError(true), 0)
     }
   }, [tokenError])
 
