@@ -37,3 +37,6 @@ Thumbs.db
 .vscode/
 !.vscode/extensions.json
 node_modules
+
+# CLI tools
+.gh-cli/
