@@ -1,11 +1,19 @@
+import Navbar from './components/layout/Navbar'
+import LeftSidebar from './components/layout/LeftSidebar'
+import RightSidebar from './components/layout/RightSidebar'
 import MapboxMap from './components/MapboxMap'
 import './App.css'
 
 function App() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <MapboxMap />
-    </main>
+    <>
+      <Navbar />
+      <div className="flex flex-1 overflow-hidden">
+        <LeftSidebar />
+        <MapboxMap />
+        <RightSidebar />
+      </div>
+    </>
   )
 }
 
