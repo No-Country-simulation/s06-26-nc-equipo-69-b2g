@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import MapOverlays from '@/components/map/MapOverlays'
 
 const token = import.meta.env.VITE_API_KEY_MAPBOX
 
@@ -51,7 +50,6 @@ export default function MapboxMap() {
       ) : (
         <>
           <div ref={mapContainer} className="h-full w-full" />
-          <MapOverlays />
         </>
       )}
     </div>
