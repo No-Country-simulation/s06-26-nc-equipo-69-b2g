@@ -4,14 +4,13 @@ from loguru import logger
 REQUIRED_COLUMNS_ANTENAS = {"ecgi", "cluster", "municipio", "lat", "lon"}
 
 REQUIRED_COLUMNS_CONCENTRACAO = {
-    "ecgi", "cluster", "municipio",
+    "ecgi",
     "day_date", "periodo",
     "n_usuarios", "n_sessoes",
     "download_bytes", "upload_bytes",
     "dur_media_s", "drop_pct_medio",
     "congestionamento_medio",
     "chamadas_total", "mensagens_total",
-    "lat", "lon",
 }
 
 VALID_PERIODOS = {"MADRUGADA", "MANHA", "TARDE", "NOITE"}
@@ -51,8 +50,6 @@ def clean_concentracao(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     df["ecgi"] = df["ecgi"].astype(str).str.strip()
-    df["cluster"] = df["cluster"].astype(str).str.strip()
-    df["municipio"] = df["municipio"].astype(str).str.strip()
     df["day_date"] = df["day_date"].astype(str).str.strip()
     df["periodo"] = df["periodo"].astype(str).str.strip().str.upper()
 
@@ -62,7 +59,6 @@ def clean_concentracao(df: pd.DataFrame) -> pd.DataFrame:
         "dur_media_s", "drop_pct_medio",
         "congestionamento_medio",
         "chamadas_total", "mensagens_total",
-        "lat", "lon",
     ]
     for col in numeric_cols:
         if col in df.columns:
@@ -75,8 +71,6 @@ def clean_concentracao(df: pd.DataFrame) -> pd.DataFrame:
         logger.warning("Dropped {} rows with invalid periodo", invalid_period)
 
     df = df.dropna(subset=["ecgi", "day_date", "periodo", "n_usuarios"])
-
-    df = df[(df["lat"].between(-90, 90)) & (df["lon"].between(-180, 180))]
 
     before_dedup = len(df)
     df = df.drop_duplicates(subset=["ecgi", "day_date", "periodo"])
