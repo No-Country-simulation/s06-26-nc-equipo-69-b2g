@@ -16,10 +16,6 @@ class AntenaSchema(BaseModel):
 
 class ConcentracaoSchema(BaseModel):
     ecgi: str = Field(..., min_length=1, description="Cell identifier -- always string")
-    cluster: str = Field(..., min_length=1)
-    municipio: str = Field(..., min_length=1)
-    lat: float = Field(..., ge=-90.0, le=90.0)
-    lon: float = Field(..., ge=-180.0, le=180.0)
     day_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     periodo: str = Field(..., pattern=r"^(MADRUGADA|MANHA|TARDE|NOITE)$")
     n_usuarios: int = Field(..., ge=0)
