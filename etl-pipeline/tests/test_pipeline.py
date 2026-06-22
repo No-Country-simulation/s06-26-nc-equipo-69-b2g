@@ -71,13 +71,18 @@ def test_schema_concentracao(settings: Settings) -> None:
         }
 
     expected = {
-        "id", "ecgi", "cluster", "municipio", "lat", "lon",
+        "id", "ecgi",
         "day_date", "periodo", "n_usuarios", "n_sessoes",
         "download_bytes", "upload_bytes", "dur_media_s",
         "drop_pct_medio", "congestionamento_medio",
         "chamadas_total", "mensagens_total",
     }
-    assert expected.issubset(columns), f"Missing: {expected - columns}"
+    assert columns == expected, f"Expected {expected}, got {columns}"
+    # Ensure normalized fields are NOT present
+    assert "cluster" not in columns
+    assert "municipio" not in columns
+    assert "lat" not in columns
+    assert "lon" not in columns
 
     engine.dispose()
 
@@ -141,7 +146,7 @@ def test_run_pipeline_idempotent(settings: Settings) -> None:
 
     r2 = run_pipeline(settings)
     assert r2["antenas_flp"]["loaded"] == 0
-    assert r2["tensor_concentracao"]["loaded"] == 7920
+    assert r2["tensor_concentracao"]["loaded"] == 0
 
 
 def test_run_pipeline_force(settings: Settings) -> None:
@@ -168,6 +173,16 @@ def test_data_integrity_concentracao(settings: Settings) -> None:
 
         distinct_ecgi = session.query(Concentracao.ecgi).distinct().count()
         assert distinct_ecgi == 132
+
+        # FK: every ecgi in concentracao must exist in antenas
+        orphan_ecgis = (
+            session.query(Concentracao.ecgi)
+            .outerjoin(Antena, Concentracao.ecgi == Antena.ecgi)
+            .filter(Antena.ecgi.is_(None))
+            .distinct()
+            .all()
+        )
+        assert len(orphan_ecgis) == 0, f"Orphan ecgis: {orphan_ecgis}"
 
     engine.dispose()
 
