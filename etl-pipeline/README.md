@@ -21,6 +21,74 @@ Este directorio contiene el pipeline ETL para la ingesta del dataset **Visent CD
 | `data/antenas_flp.csv` | `antenas` | 132 | Catálogo de antenas (PK: ecgi) |
 | `data/tensor_concentracao.csv` | `concentracao` | 7.920 | Concentración por antena/día/período |
 
+## Modelo original (sin normalizar)
+
+```mermaid
+erDiagram
+    antenas {
+        text ecgi PK "Identificador de celda"
+        varchar cluster "Nombre del cluster"
+        varchar municipio "Municipio"
+        float lat "Latitud"
+        float lon "Longitud"
+    }
+
+    concentracao {
+        int id PK "Auto-increment"
+        text ecgi "FK lógica (sin constraint)"
+        varchar cluster "Nombre del cluster"
+        varchar municipio "Municipio"
+        float lat "Latitud"
+        float lon "Longitud"
+        varchar day_date "Fecha YYYY-MM-DD"
+        varchar periodo "MADRUGADA|MANHA|TARDE|NOITE"
+        int n_usuarios "N\u00ba usuarios"
+        int n_sessoes "N\u00ba sesiones"
+        bigint download_bytes "Descarga (bytes)"
+        bigint upload_bytes "Subida (bytes)"
+        float dur_media_s "Duraci\u00f3n media (seg)"
+        float drop_pct_medio "Drop rate"
+        float congestionamento_medio "Congesti\u00f3n"
+        int chamadas_total "Llamadas"
+        int mensagens_total "Mensajes"
+    }
+```
+
+> **Problema:** `cluster`, `municipio`, `lat` y `lon` están repetidos en ambas tablas, violando 2FN/3FN.
+
+## Modelo normalizado (3FN)
+
+```mermaid
+erDiagram
+    antenas {
+        text ecgi PK "Identificador de celda"
+        varchar cluster "Nombre del cluster"
+        varchar municipio "Municipio"
+        float lat "Latitud"
+        float lon "Longitud"
+    }
+
+    concentracao {
+        int id PK "Auto-increment"
+        text ecgi FK "FK ~] antenas.ecgi"
+        varchar day_date "Fecha YYYY-MM-DD"
+        varchar periodo "MADRUGADA|MANHA|TARDE|NOITE"
+        int n_usuarios "N\u00ba usuarios"
+        int n_sessoes "N\u00ba sesiones"
+        bigint download_bytes "Descarga (bytes)"
+        bigint upload_bytes "Subida (bytes)"
+        float dur_media_s "Duraci\u00f3n media (seg)"
+        float drop_pct_medio "Drop rate"
+        float congestionamento_medio "Congesti\u00f3n"
+        int chamadas_total "Llamadas"
+        int mensagens_total "Mensajes"
+    }
+
+    antenas ||--o{ concentracao : "tiene"
+```
+
+> **Nota:** `concentracao` tiene una constraint `UNIQUE(ecgi, day_date, periodo)` y una FK hacia `antenas.ecgi`. No se repite `cluster`, `municipio`, `lat` ni `lon`.
+
 ## Flujo de trabajo
 
 ### 1. Desarrollo local con SQLite
