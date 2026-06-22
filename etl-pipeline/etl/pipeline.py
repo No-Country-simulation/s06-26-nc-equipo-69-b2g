@@ -12,6 +12,9 @@ from etl.models import Antena, Base, Concentracao
 from etl.schemas import AntenaSchema, ConcentracaoSchema
 
 
+_CHUNK_SIZE = 500
+
+
 def extract_csv(path: Path, dtype: dict | None = None) -> pd.DataFrame:
     logger.info("Extracting {}", path)
     return pd.read_csv(path, dtype=dtype or {})
@@ -55,21 +58,28 @@ def _dialect_insert(model: type, dialect_name: str):
         from sqlalchemy.dialects.postgresql import insert as ins
     else:
         ins = __import__("sqlalchemy").insert
-    return ins(model).on_conflict_do_nothing()
+    index_elements = (
+        ["ecgi", "day_date", "periodo"] if model.__tablename__ == "concentracao"
+        else ["ecgi"]
+    )
+    return ins(model).on_conflict_do_nothing(index_elements=index_elements)
 
 
 def load_records(engine: Engine, model: type, records: list[dict]) -> int:
     logger.info("Loading {} records into {}...", len(records), model.__tablename__)
+    total = len(records)
+    stmt = _dialect_insert(model, engine.dialect.name)
     with session_scope(engine) as session:
         before = session.query(model).count()
-        stmt = _dialect_insert(model, engine.dialect.name)
-        session.execute(stmt, records)
-    with session_scope(engine) as session:
+        for i in range(0, total, _CHUNK_SIZE):
+            chunk = records[i : i + _CHUNK_SIZE]
+            session.execute(stmt, chunk)
         after = session.query(model).count()
     inserted = after - before
+    skipped = total - inserted
     logger.success(
         "Inserted {} records into {} ({} skipped)",
-        inserted, model.__tablename__, len(records) - inserted,
+        inserted, model.__tablename__, skipped,
     )
     return inserted
 
@@ -131,11 +141,8 @@ def run_pipeline(
         results[label] = result
 
     if not dry_run:
-        engine.dispose()
-        engine = get_engine(settings.sqlalchemy_url(), settings.db_type)
         results["antenas_flp"]["in_db"] = count_rows(engine, "antenas")
         results["tensor_concentracao"]["in_db"] = count_rows(engine, "concentracao")
-        engine.dispose()
 
     logger.info("=" * 60)
     logger.info("Pipeline completed")
