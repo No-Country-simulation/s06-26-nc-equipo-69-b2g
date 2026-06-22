@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import Button from "./components/Button";
 import Card from "./components/card";
 import heroImage from "./assets/territorio-hero.jpg";
@@ -75,6 +76,7 @@ const TARJETAS_DESK = [
 ];
 
 function MobileLayout() {
+  const navigate = useNavigate()
   return (
     <div
       className="relative flex h-screen flex-col overflow-hidden bg-[#F2F3F1] md:hidden"
@@ -117,11 +119,13 @@ function MobileLayout() {
 
       <div className="relative flex-none px-[18px] flex flex-col gap-3">
         <Button variant="primary" size="lg" icon={<Icon name="mapa" />} fullWidth
-          className="!h-12 !text-[14.5px]">
+          className="!h-12 !text-[14.5px]"
+          onClick={() => navigate('/mapa')}>
           Abrir mapa inteligente <span aria-hidden="true">→</span>
         </Button>
         <Button variant="secondary" size="lg" icon={<Icon name="doc" />} fullWidth
-          className="!h-11 !text-[14px]">
+          className="!h-11 !text-[14px]"
+          onClick={() => navigate('/metodologia')}>
           Ver metodología
         </Button>
       </div>
@@ -150,6 +154,7 @@ function MobileLayout() {
 }
 
 function DesktopLayout() {
+  const navigate = useNavigate()
   return (
     <div
       className="relative hidden min-h-screen w-full flex-col overflow-hidden bg-[#F2F3F1] md:flex"
@@ -200,10 +205,12 @@ function DesktopLayout() {
             y una recomendación.
           </p>
           <div className="flex gap-3">
-            <Button variant="primary" size="lg" icon={<Icon name="mapa" />} className="!h-[46px] !px-5 !text-[15px]">
+            <Button variant="primary" size="lg" icon={<Icon name="mapa" />} className="!h-[46px] !px-5 !text-[15px]"
+              onClick={() => navigate('/mapa')}>
               Abrir mapa inteligente <span aria-hidden="true" style={{ fontSize: 16 }}>→</span>
             </Button>
-            <Button variant="secondary" size="lg" icon={<Icon name="doc" />} className="!h-[46px] !px-5 !text-[15px]">
+            <Button variant="secondary" size="lg" icon={<Icon name="doc" />} className="!h-[46px] !px-5 !text-[15px]"
+              onClick={() => navigate('/metodologia')}>
               Ver metodología
             </Button>
           </div>

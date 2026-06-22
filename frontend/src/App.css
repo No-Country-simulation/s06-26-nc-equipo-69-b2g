@@ -1,3 +1,4 @@
+/* App-level styles - kept minimal, all layout handled by Tailwind */
 #root {
   width: 100%;
   max-width: none;
