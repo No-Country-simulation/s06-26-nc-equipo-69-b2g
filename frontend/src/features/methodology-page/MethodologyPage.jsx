@@ -1,145 +1,80 @@
-import Navbar from './../../shared/layout/Navbar'
-import MethodologyHero from './components/MethodologyHero'
-import MethodologySection from './components/MethodologySection'
-import MethodologyDataTable from './components/MethodologyDataTable'
-import MethodologySteps from './components/MethodologySteps'
-import MethodologyPrivacy from './components/MethodologyPrivacy'
+import Navbar from '../../shared/layout/Navbar'
+import SectionDatos from './components/SectionDatos'
+import SectionIndicadores from './components/SectionIndicadores'
+import SectionRiesgo from './components/SectionRiesgo'
+import SectionBottomRow from './components/SectionBottomRow'
+import MethodologyFooterAlerts from './components/MethodologyFooterAlerts'
 
-/**
- * MethodologyPage
- *
- * Uso con router: pasar `onNavigate` para cambiar de página sin full reload.
- * Uso standalone: simplemente renderizar <MethodologyPage />.
- *
- * <MethodologyPage onNavigate={(key) => setPage(key)} />
- */
-export default function MethodologyPage({ onNavigate }) {
+export default function MethodologyPage() {
   return (
     <div
-      className="min-h-screen flex flex-col"
+      className="flex h-screen flex-col"
       style={{
-        background: 'var(--bit-bg, #F2F3F1)',
-        fontFamily: "'Public Sans', 'Helvetica Neue', Arial, sans-serif",
-        // CSS vars del Design System BiT (marca violeta)
-        '--bit-purple-deep': '#2C2750',
-        '--bit-purple': '#564C8E',
-        '--bit-purple-hover': '#6259A0',
-        '--bit-purple-tint': 'color-mix(in srgb, #564C8E 8%, #FFFFFF)',
-        '--bit-bg': '#F2F3F1',
-        '--bit-surface': '#FFFFFF',
-        '--bit-elev': '#F5F6F4',
-        '--bit-border': '#E2E4DF',
-        '--bit-border-strong': '#C7CBC4',
-        '--bit-text': '#21262B',
-        '--bit-text-2': '#5B6269',
-        '--bit-text-3': '#8A9197',
-        '--bit-shadow-sm': '0 1px 2px rgba(20,30,35,0.07)',
+        '--bg':            '#F2F3F1',
+        '--surface':       '#FFFFFF',
+        '--elev':          '#F5F6F4',
+        '--elev2':         '#EBEDE9',
+        '--border':        '#E2E4DF',
+        '--border-strong': '#C7CBC4',
+        '--text':          '#21262B',
+        '--text-2':        '#5B6269',
+        '--text-3':        '#8A9197',
+        '--brand-deep':    '#2C2750',
+        '--primary':       '#564C8E',
+        '--primary-hover': '#6259A0',
+        '--on-primary':    '#FFFFFF',
+        '--accent-text':   '#564C8E',
+        '--brand-tint':    'color-mix(in srgb, #564C8E 7%, #FFFFFF)',
+        '--brand-tint-bd': 'color-mix(in srgb, #564C8E 26%, #E2E4DF)',
+        '--ai':            '#5D539B',
+        '--ai-bg':         'color-mix(in srgb, #5D539B 8%, #FFFFFF)',
+        '--ai-bd':         'color-mix(in srgb, #5D539B 28%, #E2E4DF)',
+        '--risk-low':         '#2E8653',
+        '--risk-low-text':    '#256B43',
+        '--risk-low-bg':      '#E3F1E8',
+        '--risk-low-bd':      '#BCDCC8',
+        '--risk-med':         '#D29318',
+        '--risk-med-text':    '#8A5A06',
+        '--risk-med-bg':      '#FAF0DA',
+        '--risk-med-bd':      '#E9D5A6',
+        '--risk-high':        '#C44536',
+        '--risk-high-text':   '#A93226',
+        '--risk-high-bg':     '#FAE7E4',
+        '--risk-high-bd':     '#EFC4BC',
+        '--shadow-sm':     '0 1px 2px rgba(20,30,35,0.07)',
+        '--shadow-md':     '0 3px 10px rgba(20,30,35,0.09), 0 1px 2px rgba(20,30,35,0.07)',
+        '--font-ui':       '"Public Sans","Helvetica Neue",Arial,sans-serif',
+        '--font-data':     '"IBM Plex Mono","SF Mono",Consolas,monospace',
+        background:        '#F2F3F1',
+        fontFamily:        '"Public Sans","Helvetica Neue",Arial,sans-serif',
       }}
     >
-      {/* Navbar con Metodología activa */}
-      <Navbar activePage="metodologia" onNavigate={onNavigate} />
+      <Navbar />
 
-      {/* Hero */}
-      <MethodologyHero />
-
-      {/* Contenido principal */}
-      <main className="flex-1 py-4">
-
-        {/* 01 · Fuentes de datos */}
-        <MethodologySection number="01" title="Fuentes de datos">
-          <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--bit-text-2, #5B6269)' }}>
-            El panel integra cuatro fuentes primarias. Todos los conjuntos de datos pasan
-            por validación automática de integridad antes de ingresar al pipeline.
-          </p>
-          <MethodologyDataTable />
-        </MethodologySection>
-
-        {/* 02 · Pipeline de procesamiento */}
-        <MethodologySection number="02" title="Pipeline de procesamiento">
-          <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--bit-text-2, #5B6269)' }}>
-            El procesamiento ocurre en seis etapas secuenciales. Cada etapa es
-            idempotente — si falla, se puede reiniciar desde el punto de corte sin
-            riesgo de duplicados.
-          </p>
-          <MethodologySteps />
-        </MethodologySection>
-
-        {/* 03 · Indicadores y definiciones */}
-        <MethodologySection number="03" title="Indicadores y definiciones">
-          <div className="flex flex-col gap-3">
-            {[
-              { term: 'Cobertura de red', def: 'Porcentaje de celdas H3 con al menos una señal 4G/5G registrada en el período de análisis. Escala 0–100 %.' },
-              { term: 'Índice de movilidad', def: 'Promedio ponderado de desplazamientos origen-destino normalizados por la población residente de la celda de origen (fuente: IBGE 2022).' },
-              { term: 'Concentración (personas/km²)', def: 'Estimación de densidad instantánea basada en conteo de dispositivos únicos. Se aplica un factor de expansión de 1.18× para estimar la población total.' },
-              { term: 'Riesgo de cuello de botella', def: 'Clasificación: Alto (flujo > P90 Y velocidad < P20), Medio (flujo > P75 Y velocidad < P40), Bajo (resto). Percentiles calculados sobre histórico de 12 meses.' },
-            ].map(({ term, def }) => (
-              <div
-                key={term}
-                className="p-4 rounded-lg border"
-                style={{
-                  background: 'var(--bit-surface, #FFFFFF)',
-                  borderColor: 'var(--bit-border, #E2E4DF)',
-                  boxShadow: 'var(--bit-shadow-sm)',
-                }}
-              >
-                <dt
-                  className="text-sm font-semibold mb-1"
-                  style={{ color: 'var(--bit-text, #21262B)', fontFamily: "'Public Sans', sans-serif" }}
-                >
-                  {term}
-                </dt>
-                <dd
-                  className="text-sm leading-relaxed"
-                  style={{ color: 'var(--bit-text-2, #5B6269)', fontFamily: "'Public Sans', sans-serif" }}
-                >
-                  {def}
-                </dd>
-              </div>
-            ))}
-          </div>
-        </MethodologySection>
-
-        {/* 04 · Privacidad y limitaciones */}
-        <MethodologySection number="04" title="Privacidad y limitaciones">
-          <MethodologyPrivacy />
-        </MethodologySection>
-
-        {/* 05 · Contacto */}
-        <MethodologySection number="05" title="Preguntas y transparencia">
-          <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--bit-text-2, #5B6269)' }}>
-            El código fuente del pipeline de procesamiento es auditadle por equipos
-            autorizados. Para solicitar acceso al repositorio o hacer preguntas sobre
-            la metodología:
-          </p>
-          <div
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium"
-            style={{
-              background: 'var(--bit-surface, #FFFFFF)',
-              borderColor: 'var(--bit-border-strong, #C7CBC4)',
-              color: 'var(--bit-purple, #564C8E)',
-              fontFamily: "'IBM Plex Mono', monospace",
-              boxShadow: 'var(--bit-shadow-sm)',
-            }}
+      <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 max-w-5xl mx-auto w-full">
+        {/* Page title */}
+        <div className="mb-6">
+          <h1
+            className="text-xl font-bold mb-1"
+            style={{ color: 'var(--text)', fontFamily: 'var(--font-ui)', letterSpacing: '-0.01em' }}
           >
-            dados@bit.sc.gov.br
-          </div>
-        </MethodologySection>
-      </main>
-
-      {/* Footer */}
-      <footer
-        className="px-6 md:px-10 py-6 border-t text-xs"
-        style={{
-          borderColor: 'var(--bit-border, #E2E4DF)',
-          color: 'var(--bit-text-3, #8A9197)',
-          fontFamily: "'IBM Plex Mono', monospace",
-        }}
-      >
-        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between gap-2">
-          <span>BiT · Panel de Datos Públicos · Florianópolis, SC</span>
-          <span>Datos: CDRView jun/2026 · LGPD-compliant</span>
+            Fuentes, metodología y límites del análisis
+          </h1>
+          <p className="text-sm" style={{ color: 'var(--text-2)', fontFamily: 'var(--font-ui)' }}>
+            Esta página explica de dónde provienen los datos, cómo interpretamos el riesgo y cómo la IA genera respuestas
+            para apoyar la toma de decisiones públicas.
+          </p>
         </div>
-      </footer>
+
+        {/* Content sections */}
+        <div className="flex flex-col gap-4">
+          <SectionDatos />
+          <SectionIndicadores />
+          <SectionRiesgo />
+          <SectionBottomRow />
+          <MethodologyFooterAlerts />
+        </div>
+      </main>
     </div>
   )
 }

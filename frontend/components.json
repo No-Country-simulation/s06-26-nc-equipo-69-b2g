@@ -2,11 +2,7 @@
   "$schema": "https://ui.shadcn.com/schema.json",
   "style": "radix-nova",
   "rsc": false,
-<<<<<<< HEAD
-  "tsx": true,
-=======
   "tsx": false,
->>>>>>> d6dbb239b6355d552decabc13c2d8c334405ee83
   "tailwind": {
     "config": "tailwind.config.cjs",
     "css": "src/index.css",

@@ -1,5 +1,5 @@
 import { BarChart3, BookOpen, Download, Map, Menu } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
 const navLinks = [
@@ -10,6 +10,17 @@ const navLinks = [
 
 export default function Navbar({ activePage = 'mapa', onNavigate }) {
   const navigate = useNavigate()
+  const location = useLocation()
+  
+  const getActivePage = () => {
+    const path = location.pathname
+    if (path === '/mapa') return 'mapa'
+    if (path === '/comparar') return 'comparar'
+    if (path === '/metodologia') return 'metodologia'
+    return activePage
+  }
+  
+  const currentActivePage = getActivePage()
   
   const handleClick = (href, key) => {
     if (onNavigate) {
@@ -43,7 +54,7 @@ export default function Navbar({ activePage = 'mapa', onNavigate }) {
         {/* Nav Links – desktop */}
         <div className="hidden items-center gap-1 md:flex">
           {navLinks.map((link) => {
-            const isActive = activePage === link.key
+            const isActive = currentActivePage === link.key
             return (
               <button
                 key={link.key}
@@ -109,7 +120,7 @@ export default function Navbar({ activePage = 'mapa', onNavigate }) {
           <div className="flex flex-1 flex-col px-3 py-4">
             <div className="space-y-1">
               {navLinks.map((link) => {
-                const isActive = activePage === link.key
+                const isActive = currentActivePage === link.key
                 return (
                   <SheetClose key={link.key} asChild>
                     <button
