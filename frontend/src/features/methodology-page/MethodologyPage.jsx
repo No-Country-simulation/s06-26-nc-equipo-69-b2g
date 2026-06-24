@@ -1,4 +1,3 @@
-import Navbar from '@/shared/layout/Navbar'
 import SectionDatos from './components/SectionDatos'
 import SectionIndicadores from './components/SectionIndicadores'
 import SectionRiesgo from './components/SectionRiesgo'
@@ -49,8 +48,6 @@ export default function MethodologyPage() {
         fontFamily:        '"Public Sans","Helvetica Neue",Arial,sans-serif',
       }}
     >
-      <Navbar />
-
       <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 max-w-5xl mx-auto w-full">
         {/* Page title */}
         <div className="mb-6">
