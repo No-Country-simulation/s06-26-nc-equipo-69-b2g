@@ -4,7 +4,7 @@ import ClusterTable from '../components/ClusterTable'
 
 export default function ClusterComparisonPage() {
   return (
-    <main className="flex-1 overflow-hidden px-4 md:px-8 py-6 max-w-5xl mx-auto w-full">
+    <main className="flex-1 overflow-hidden px-4 md:px-8 py-10 max-w-5xl mx-auto w-full">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Comparar clusters priorizados</h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -28,7 +28,7 @@ export default function ClusterComparisonPage() {
           <button className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
             style={{ backgroundColor: '#6B21A8' }}>
             <Bot className="h-3.5 w-3.5" />
-            Preguntar a la IA sobre estos clusters
+            Preguntar a la IA
           </button>
         </div>
       </div>

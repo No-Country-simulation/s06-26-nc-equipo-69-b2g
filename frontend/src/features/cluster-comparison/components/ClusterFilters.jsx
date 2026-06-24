@@ -22,7 +22,7 @@ export default function ClusterFilters() {
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white shadow-sm"
             style={{ backgroundColor: '#6B21A8', borderColor: '#6B21A8' }}
           >
-            <span className="h-2 w-2 rounded-full bg-white" />
+            <span className={`h-2 w-2 rounded-full ${f.color}`} />
             {f.label}
             <button
               onClick={() => remove(f.id)}
