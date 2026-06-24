@@ -19,12 +19,16 @@ export default function ClusterFilters() {
         active.includes(f.id) ? (
           <span
             key={f.id}
-            className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 shadow-sm"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white shadow-sm"
+            style={{ backgroundColor: '#6B21A8', borderColor: '#6B21A8' }}
           >
-            <span className={`h-2 w-2 rounded-full ${f.color}`} />
+            <span className="h-2 w-2 rounded-full bg-white" />
             {f.label}
-            <button onClick={() => remove(f.id)} className="-mr-0.5 ml-0.5 rounded-full p-0.5 transition-colors hover:bg-gray-100">
-              <X className="h-3 w-3 text-gray-400" />
+            <button
+              onClick={() => remove(f.id)}
+              className="-mr-0.5 ml-0.5 rounded-full p-0.5 text-white transition-opacity hover:opacity-70"
+            >
+              <X className="h-3 w-3" />
             </button>
           </span>
         ) : (
