@@ -52,14 +52,15 @@ export default function MapboxMap() {
             Configurá la variable <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-mono">VITE_API_KEY_MAPBOX</code> en tu archivo <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-mono">frontend/.env</code> y reiniciá el servidor de desarrollo.
           </p>
         </div>
-      ) : !loaded ? (
-        <div className="flex h-full w-full flex-col items-center justify-center bg-gray-100">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500" />
-          <p className="mt-4 text-sm text-gray-500">Cargando mapa...</p>
-        </div>
       ) : (
         <>
           <div ref={mapContainer} className="h-full w-full" />
+          {!loaded && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500" />
+              <p className="mt-4 text-sm text-gray-500">Cargando mapa...</p>
+            </div>
+          )}
         </>
       )}
     </div>
