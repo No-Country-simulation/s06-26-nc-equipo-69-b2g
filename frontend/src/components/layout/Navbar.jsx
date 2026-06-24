@@ -1,4 +1,4 @@
-import { Map, BarChart3, BookOpen, Download, User } from 'lucide-react'
+import { Map, BarChart3, BookOpen, Download } from 'lucide-react'
 
 const navLinks = [
   { label: 'Mapa', icon: Map, active: true },

@@ -1,4 +1,4 @@
-import { Send, Sparkles, ChevronRight } from 'lucide-react'
+import { Send } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
 const clusters = [

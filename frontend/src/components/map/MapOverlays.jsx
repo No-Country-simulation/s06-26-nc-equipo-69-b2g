@@ -1,6 +1,7 @@
 import { Search, SlidersHorizontal, Database } from 'lucide-react'
 import useAppStore from '@/store/useAppStore'
-import FilterPill, { filterConfig } from '@/components/ui/FilterPill'
+import FilterPill from '@/components/ui/FilterPill'
+import { filterConfig } from '@/features/map-page/data/filterConfig'
 
 export default function MapOverlays() {
   const activeFilters = useAppStore((s) => s.activeFilters)

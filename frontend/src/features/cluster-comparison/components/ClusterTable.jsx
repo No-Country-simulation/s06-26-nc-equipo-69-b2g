@@ -71,10 +71,10 @@ export default function ClusterTable() {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-[#E2E4DF] bg-white shadow-[0_1px_2px_rgba(20,30,35,0.07)]">
       <Table>
         <TableHeader>
-          <TableRow className="bg-gray-50">
+          <TableRow className="bg-[#F5F6F4]">
             <TableHead className="w-10 px-3 py-2.5"></TableHead>
             <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Cluster</TableHead>
             <TableHead className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Personas</TableHead>
@@ -85,8 +85,8 @@ export default function ClusterTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {clusters.map((c, i) => (
-            <TableRow key={c.name} className={i % 2 === 1 ? 'bg-gray-50/50' : ''}>
+          {clusters.map((c) => (
+            <TableRow key={c.name}>
               <TableCell className="px-3 py-2.5">
                 <Checkbox
                   checked={selected.includes(c.name)}
