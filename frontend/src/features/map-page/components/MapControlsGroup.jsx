@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Database, Search, SlidersHorizontal } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import { filterConfig } from '../data/filterConfig'
 import useMapPageStore from '../store/useMapPageStore'
 import FilterPill from './FilterPill'

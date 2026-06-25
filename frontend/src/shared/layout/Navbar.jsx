@@ -1,6 +1,6 @@
 import { BarChart3, BookOpen, Download, Map, Menu } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
-import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/shared/components/ui/sheet'
 
 const navLinks = [
   { label: 'Mapa', icon: Map, path: '/mapa' },
@@ -18,7 +18,7 @@ export default function Navbar() {
       {/* Left: Logo + Nav */}
       <div className="flex min-w-0 items-center gap-3 md:gap-6">
         {/* Logo */}
-        <div className="flex min-w-0 items-center gap-2">
+        <Link to="/" className="flex min-w-0 items-center gap-2 rounded-md transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60" aria-label="Ir al inicio">
           <div
             className="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold text-white"
             style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
@@ -29,7 +29,7 @@ export default function Navbar() {
             style={{ fontFamily: "'Public Sans', sans-serif" }}>
             Panel de Datos Públicos
           </span>
-        </div>
+        </Link>
 
         {/* Nav Links – desktop */}
         <div className="hidden items-center gap-1 md:flex">
@@ -80,17 +80,20 @@ export default function Navbar() {
           className="w-[min(86vw,320px)] gap-0 border-l border-gray-200 bg-white p-0 text-gray-900 shadow-2xl md:hidden"
         >
           <div className="border-b border-gray-100 px-5 py-4 pr-14">
-            <div className="flex items-center gap-2">
-              <div
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold text-white"
-                style={{ backgroundColor: '#2C2750' }}
-              >
-                BiT
-              </div>
-              <SheetTitle className="text-sm font-semibold text-gray-900">
-                Panel de Datos Públicos
-              </SheetTitle>
-            </div>
+            <SheetTitle className="sr-only">Navegación</SheetTitle>
+            <SheetClose asChild>
+              <Link to="/" className="flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-50" aria-label="Ir al inicio">
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold text-white"
+                  style={{ backgroundColor: '#2C2750' }}
+                >
+                  BiT
+                </div>
+                <span className="text-sm font-semibold text-gray-900">
+                  Panel de Datos Públicos
+                </span>
+              </Link>
+            </SheetClose>
           </div>
 
           <div className="flex flex-1 flex-col px-3 py-4">

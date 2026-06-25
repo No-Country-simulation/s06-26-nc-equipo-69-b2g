@@ -23,6 +23,8 @@ coverage/
 .turbo/
 **/.turbo/
 mcp.json
+docs-spec/
+opencode.json
 
 # Logs
 *.log

@@ -7,7 +7,7 @@ import MethodologyFooterAlerts from './components/MethodologyFooterAlerts'
 export default function MethodologyPage() {
   return (
     <div
-      className="flex h-screen flex-col"
+      className="min-h-full"
       style={{
         '--bg':            '#F2F3F1',
         '--surface':       '#FFFFFF',
@@ -48,7 +48,7 @@ export default function MethodologyPage() {
         fontFamily:        '"Public Sans","Helvetica Neue",Arial,sans-serif',
       }}
     >
-      <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 max-w-5xl mx-auto w-full">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-10 lg:px-12">
         {/* Page title */}
         <div className="mb-6">
           <h1
@@ -64,7 +64,7 @@ export default function MethodologyPage() {
         </div>
 
         {/* Content sections */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           <SectionDatos />
           <SectionIndicadores />
           <SectionRiesgo />
