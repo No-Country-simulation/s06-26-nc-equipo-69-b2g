@@ -9,7 +9,7 @@ import '../App.css'
 function App() {
   return (
     <BrowserRouter>
-      <div className="flex h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         <Navbar />
         <Routes>
           <Route path="/" element={<LandingPage />} />

@@ -10,7 +10,7 @@ const useMapPageStore = create((set) => ({
   clearSelectedCluster: () => set({ selectedCluster: null }),
 
   // Left sidebar
-  isLeftSidebarOpen: true,
+  isLeftSidebarOpen: false,
   toggleLeftSidebar: () => set((state) => ({ isLeftSidebarOpen: !state.isLeftSidebarOpen })),
 
   // Active filters on the map

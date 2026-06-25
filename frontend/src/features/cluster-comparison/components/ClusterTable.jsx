@@ -7,9 +7,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
+} from '@/shared/components/ui/table'
+import { Badge } from '@/shared/components/ui/badge'
+import { Checkbox } from '@/shared/components/ui/checkbox'
 
 const clusters = [
   {
@@ -91,7 +91,7 @@ export default function ClusterTable() {
                 <Checkbox
                   checked={selected.includes(c.name)}
                   onCheckedChange={() => toggle(c.name)}
-                  className="data-[state=checked]:bg-[#6B21A8] data-[state=checked]:border-[#6B21A8] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
+                  className="data-[state=checked]:border-[#564C8E] data-[state=checked]:bg-[#564C8E] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
                 />
               </TableCell>
               <TableCell className="px-3 py-2.5 text-xs font-medium">{c.name}</TableCell>
