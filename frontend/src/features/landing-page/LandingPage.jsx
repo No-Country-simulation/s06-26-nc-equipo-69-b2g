@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from "./components/Button";
 import Card from "./components/Card";
+import { FuentesPopup, EjemplosPopup, BitAiPopup } from "./components/Popup";
 import heroImage from "./assets/territorio-hero.jpg";
 
 function Icon({ name, size = 18 }) {
@@ -67,12 +69,6 @@ const TARJETAS_MOB = [
   { icon: "datos",  title: "Qué datos usa",       desc: "Vísent CDRView, Anatel e IBGE"                           },
   { icon: "chat",   title: "Qué podés preguntar", desc: "Preguntas en lenguaje natural sobre el territorio"        },
   { icon: "barras", title: "Qué devuelve",         desc: "Datos, fuentes citadas y una recomendación"             },
-];
-
-const TARJETAS_DESK = [
-  { icon: "datos",  title: "Qué datos usa",       desc: "Vísent CDRView (concentración, calidad de red, movilidad OD), Anatel e IBGE.", link: "Ver fuentes"  },
-  { icon: "chat",   title: "Qué podés preguntar", desc: "“¿Dónde hay mucha gente y mala calidad de red?” — en lenguaje natural.",                 link: "Ver ejemplos" },
-  { icon: "barras", title: "Qué devuelve",         desc: "Respuesta con datos, fuente, recomendación y cluster resaltado.",               link: "Ver ejemplo"  },
 ];
 
 function MobileLayout() {
@@ -155,6 +151,14 @@ function MobileLayout() {
 
 function DesktopLayout() {
   const navigate = useNavigate()
+  const [popup, setPopup] = useState(null)
+
+  const TARJETAS_DESK = [
+    { icon: "datos",  title: "Qué datos usa",       desc: "Vísent CDRView (concentración, calidad de red, movilidad OD), Anatel e IBGE.", link: "Ver fuentes",  onClick: () => setPopup("fuentes") },
+    { icon: "chat",   title: "Qué podés preguntar", desc: "“¿Dónde hay mucha gente y mala calidad de red?” — en lenguaje natural.",                 link: "Ver ejemplos", onClick: () => setPopup("ejemplos") },
+    { icon: "barras", title: "Qué devuelve",         desc: "Respuesta con datos, fuente, recomendación y cluster resaltado.",               link: "Ver ejemplo",  onClick: () => setPopup("bitai") },
+  ];
+
   return (
     <div
       className="relative hidden min-h-screen w-full flex-col overflow-hidden bg-[#F2F3F1] md:flex"
@@ -229,7 +233,7 @@ function DesktopLayout() {
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-bold text-[#21262B]">{t.title}</span>
                 <span className="text-[13px] leading-relaxed text-[#5B6269]">{t.desc}</span>
-                <a className="mt-0.5 cursor-pointer text-[12.5px] font-semibold text-[#564C8E] no-underline">{t.link} ›</a>
+                <a onClick={t.onClick} className="mt-0.5 cursor-pointer text-[12.5px] font-semibold text-[#564C8E] no-underline hover:underline">{t.link} ›</a>
               </div>
             </div>
           ))}
@@ -243,6 +247,10 @@ function DesktopLayout() {
           </span>
         </footer>
       </div>
+
+      {popup === "fuentes" && <FuentesPopup onClose={() => setPopup(null)} />}
+      {popup === "ejemplos" && <EjemplosPopup onClose={() => setPopup(null)} onProbarAhora={() => { setPopup(null); navigate('/mapa'); }} />}
+      {popup === "bitai" && <BitAiPopup onClose={() => setPopup(null)} onVerEnMapa={() => { setPopup(null); navigate('/mapa'); }} />}
     </div>
   );
 }
