@@ -10,7 +10,7 @@ services:
     repo: https://github.com/No-Country-simulation/s06-26-nc-equipo-69-b2g
     branch: main
     dockerfilePath: ./backend/Dockerfile.prod
-    dockerContext: ./backend
+    dockerContext: ./
     healthCheckPath: /health
     autoDeploy: true
 

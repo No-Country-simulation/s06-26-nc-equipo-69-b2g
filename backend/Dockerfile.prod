@@ -63,6 +63,7 @@ COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/src ./src
 COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/package.json ./package.json
+COPY docs/Prompt_IA.md /docs/Prompt_IA.md
 
 # Secure ownership
 RUN chown -R appuser:nodejs /app
