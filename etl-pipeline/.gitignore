@@ -5,13 +5,18 @@
 *.db-shm
 
 # Data files
+data/
 *.csv
 
 # Environment
 .env
 
 # Python
+.venv/
+venv/
+env/
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
@@ -19,7 +24,9 @@ __pycache__/
 dist/
 build/
 *.egg
-.pytest_cache
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Logs
 logs/

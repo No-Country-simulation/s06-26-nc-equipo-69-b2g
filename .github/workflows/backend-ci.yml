@@ -45,4 +45,4 @@ jobs:
         run: pnpm --filter backend test
 
       - name: Build Docker image
-        run: docker build -t app-bit-backend -f backend/Dockerfile.prod backend/
+        run: docker build -t app-bit-backend -f backend/Dockerfile.prod .

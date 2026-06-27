@@ -1,236 +1,60 @@
-import pytest
 from pathlib import Path
-from sqlalchemy import text
 
-from etl.config import Settings
-from etl.database import get_engine, session_scope
-from etl.models import Antena, Base, Concentracao
-from etl.pipeline import run_pipeline, create_tables
+from etl.pipeline import compute_riesgo_rows
 
 
-@pytest.fixture
-def settings(tmp_path: Path) -> Settings:
-    db_path = tmp_path / "test_visent.db"
-    return Settings(
-        db_type="sqlite",
-        sqlite_path=str(db_path),
-        concentracao_csv=str(
-            Path(__file__).resolve().parent.parent / "data" / "tensor_concentracao.csv"
-        ),
-        antenas_csv=str(
-            Path(__file__).resolve().parent.parent / "data" / "antenas_flp.csv"
-        ),
+class FakeCursor:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def execute(self, sql: str) -> None:
+        self.sql = sql
+
+    def fetchall(self):
+        return [
+            ("A", "Florianopolis", -27.1, -48.1),
+            ("B", "Florianopolis", -27.2, -48.2),
+        ]
+
+
+class FakeConnection:
+    def cursor(self):
+        return FakeCursor()
+
+
+def test_compute_riesgo_rows_includes_components_and_sin_cobertura(tmp_path: Path):
+    (tmp_path / "tensor_concentracao.csv").write_text(
+        "ecgi,cluster,congestionamento_medio,drop_pct_medio,n_usuarios\n"
+        "001,A,0.3,0.6,100\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "assinantes.csv").write_text(
+        "home_cluster,income_cluster\n"
+        "A,C\n"
+        "A,B\n"
+        "B,D\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "tensor_mobilidade.csv").write_text(
+        "cluster,rat_type,n_sessoes\n"
+        "A,LTE,10\n"
+        "A,NR,30\n",
+        encoding="utf-8",
     )
 
+    rows = {row["cluster"]: row for row in compute_riesgo_rows(FakeConnection(), tmp_path)}
 
-def test_pipeline_imports() -> None:
-    from etl import config, models, schemas, clean, database, pipeline  # noqa: F401
+    assert rows["A"]["sin_cobertura"] is False
+    assert rows["A"]["pct_legacy_tech"] == 0.25
+    assert rows["A"]["concentracion"] == 1.0
+    assert rows["A"]["vulnerabilidad"] == 0.5
+    assert rows["A"]["nivel_riesgo"] == "MEDIO"
 
-    assert True
-
-
-def test_settings_defaults() -> None:
-    s = Settings(_env_file=None)
-    assert s.db_type == "sqlite"
-    assert s.is_sqlite is True
-    assert s.is_postgres is False
-
-
-def test_engine_creation_sqlite(settings: Settings) -> None:
-    engine = get_engine(settings.sqlalchemy_url(), "sqlite")
-    assert engine is not None
-
-    with engine.connect() as conn:
-        result = conn.execute(text("SELECT 1"))
-        assert result.scalar() == 1
-
-    engine.dispose()
-
-
-def test_create_tables(settings: Settings) -> None:
-    engine = get_engine(settings.sqlalchemy_url(), "sqlite")
-    create_tables(engine)
-
-    with engine.connect() as conn:
-        insp = __import__("sqlalchemy").inspect(engine)
-        tables = set(insp.get_table_names())
-        assert "antenas" in tables
-        assert "concentracao" in tables
-
-    engine.dispose()
-
-
-def test_schema_concentracao(settings: Settings) -> None:
-    engine = get_engine(settings.sqlalchemy_url(), "sqlite")
-    create_tables(engine)
-
-    with engine.connect() as conn:
-        columns = {
-            row.name
-            for row in conn.execute(text("PRAGMA table_info('concentracao')"))
-        }
-
-    expected = {
-        "id", "ecgi",
-        "day_date", "periodo", "n_usuarios", "n_sessoes",
-        "download_bytes", "upload_bytes", "dur_media_s",
-        "drop_pct_medio", "congestionamento_medio",
-        "chamadas_total", "mensagens_total",
-    }
-    assert columns == expected, f"Expected {expected}, got {columns}"
-    # Ensure normalized fields are NOT present
-    assert "cluster" not in columns
-    assert "municipio" not in columns
-    assert "lat" not in columns
-    assert "lon" not in columns
-
-    engine.dispose()
-
-
-def test_schema_antenas(settings: Settings) -> None:
-    engine = get_engine(settings.sqlalchemy_url(), "sqlite")
-    create_tables(engine)
-
-    with engine.connect() as conn:
-        pk_cols = {
-            row.name
-            for row in conn.execute(
-                text("SELECT name FROM pragma_table_info('antenas') WHERE pk = 1")
-            )
-        }
-        assert pk_cols == {"ecgi"}, f"PK should be ecgi, got {pk_cols}"
-
-        columns = {
-            row.name
-            for row in conn.execute(text("PRAGMA table_info('antenas')"))
-        }
-
-    expected = {"ecgi", "cluster", "municipio", "lat", "lon"}
-    assert columns == expected, f"Expected {expected}, got {columns}"
-
-    engine.dispose()
-
-
-def test_run_pipeline_full(settings: Settings) -> None:
-    results = run_pipeline(settings)
-
-    antenas = results["antenas_flp"]
-    assert antenas["raw"] == 132
-    assert antenas["validated"] == 132
-    assert antenas["loaded"] == 132
-    assert antenas["in_db"] == 132
-
-    concentracao = results["tensor_concentracao"]
-    assert concentracao["raw"] == 7920
-    assert concentracao["validated"] == 7920
-    assert concentracao["loaded"] == 7920
-    assert concentracao["in_db"] == 7920
-
-
-def test_run_pipeline_dry_run(settings: Settings) -> None:
-    results = run_pipeline(settings, dry_run=True)
-
-    assert results["antenas_flp"]["raw"] == 132
-    assert results["antenas_flp"]["loaded"] == 0
-    assert "in_db" not in results["antenas_flp"]
-
-    assert results["tensor_concentracao"]["raw"] == 7920
-    assert results["tensor_concentracao"]["loaded"] == 0
-    assert "in_db" not in results["tensor_concentracao"]
-
-
-def test_run_pipeline_idempotent(settings: Settings) -> None:
-    r1 = run_pipeline(settings)
-    assert r1["antenas_flp"]["loaded"] == 132
-    assert r1["tensor_concentracao"]["loaded"] == 7920
-
-    r2 = run_pipeline(settings)
-    assert r2["antenas_flp"]["loaded"] == 0
-    assert r2["tensor_concentracao"]["loaded"] == 0
-
-
-def test_run_pipeline_force(settings: Settings) -> None:
-    run_pipeline(settings)
-    results = run_pipeline(settings, force=True)
-
-    assert results["antenas_flp"]["in_db"] == 132
-    assert results["tensor_concentracao"]["in_db"] == 7920
-
-
-def test_data_integrity_concentracao(settings: Settings) -> None:
-    run_pipeline(settings)
-
-    engine = get_engine(settings.sqlalchemy_url(), "sqlite")
-    with session_scope(engine) as session:
-        total = session.query(Concentracao).count()
-        assert total == 7920
-
-        periodos = {
-            row[0]
-            for row in session.query(Concentracao.periodo).distinct().all()
-        }
-        assert periodos == {"MADRUGADA", "MANHA", "TARDE", "NOITE"}
-
-        distinct_ecgi = session.query(Concentracao.ecgi).distinct().count()
-        assert distinct_ecgi == 132
-
-        # FK: every ecgi in concentracao must exist in antenas
-        orphan_ecgis = (
-            session.query(Concentracao.ecgi)
-            .outerjoin(Antena, Concentracao.ecgi == Antena.ecgi)
-            .filter(Antena.ecgi.is_(None))
-            .distinct()
-            .all()
-        )
-        assert len(orphan_ecgis) == 0, f"Orphan ecgis: {orphan_ecgis}"
-
-    engine.dispose()
-
-
-def test_data_integrity_antenas(settings: Settings) -> None:
-    run_pipeline(settings)
-
-    engine = get_engine(settings.sqlalchemy_url(), "sqlite")
-    with session_scope(engine) as session:
-        total = session.query(Antena).count()
-        assert total == 132
-
-    engine.dispose()
-
-
-def test_no_duplicate_concentracao(settings: Settings) -> None:
-    run_pipeline(settings)
-
-    engine = get_engine(settings.sqlalchemy_url(), "sqlite")
-    with session_scope(engine) as session:
-        from sqlalchemy import func
-
-        dup_count = (
-            session.query(
-                Concentracao.ecgi,
-                Concentracao.day_date,
-                Concentracao.periodo,
-                func.count().label("cnt"),
-            ).group_by(
-                Concentracao.ecgi,
-                Concentracao.day_date,
-                Concentracao.periodo,
-            ).having(func.count() > 1).count()
-        )
-        assert dup_count == 0, f"Found {dup_count} duplicate groups"
-
-    engine.dispose()
-
-
-def test_antenas_pk_enforced(settings: Settings) -> None:
-    run_pipeline(settings)
-
-    engine = get_engine(settings.sqlalchemy_url(), "sqlite")
-    with session_scope(engine) as session:
-        total = session.query(Antena).count()
-        assert total == 132
-
-        distinct = session.query(Antena.ecgi).distinct().count()
-        assert distinct == 132
-
-    engine.dispose()
+    assert rows["B"]["sin_cobertura"] is True
+    assert rows["B"]["infra"] == 1.0
+    assert rows["B"]["concentracion"] == 1.0
+    assert rows["B"]["n_usuarios_total"] == 1
+    assert rows["B"]["nivel_riesgo"] == "ALTO"

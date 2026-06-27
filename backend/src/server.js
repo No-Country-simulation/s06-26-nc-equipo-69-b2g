@@ -4,7 +4,8 @@ import { env } from './config/env.js';
 
 async function start() {
   const { error } = await supabase.from('_ping').select('*').limit(1);
-  const isConnected = !error || error.code === 'PGRST205' || error.code === 'PGRST116' || error.code === '42P01';
+  const isConnected =
+    !error || error.code === 'PGRST205' || error.code === 'PGRST116' || error.code === '42P01';
   if (!isConnected) {
     logger.error({ err: error }, 'Supabase connection failed');
     process.exit(1);
