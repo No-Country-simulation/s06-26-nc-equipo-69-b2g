@@ -17,7 +17,7 @@ const envSchema = z
     DIRECT_URL: z.string().min(1).optional(),
     // AI / RAG (optional: services degrade to mock/no-RAG when absent).
     OPENROUTER_API_KEY: z.string().optional(),
-    OPENROUTER_MODEL: z.string().default('deepseek/deepseek-chat'),
+    OPENROUTER_MODEL: z.string().default('openrouter/free'),
     EMBED_MODEL: z.string().default('nvidia/llama-nemotron-embed-vl-1b-v2:free'),
   })
   .refine((env) => env.SUPABASE_ANON_KEY || env.SUPABASE_PUBLISHABLE_KEY, {
