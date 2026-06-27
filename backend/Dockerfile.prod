@@ -34,7 +34,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY backend/package.json backend/package.json
 RUN pnpm install --no-frozen-lockfile --filter backend
 
-COPY backend/prisma ./prisma
+COPY backend/prisma ./backend/prisma
 RUN pnpm --filter backend db:generate
 
 COPY backend/src ./src
@@ -61,7 +61,7 @@ RUN apk add --no-cache wget
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/src ./src
-COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/package.json ./package.json
 
 # Secure ownership
