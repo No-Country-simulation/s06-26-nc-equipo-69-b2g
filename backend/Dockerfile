@@ -3,12 +3,12 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile --prod
+COPY package.json ./
+RUN pnpm install --no-frozen-lockfile --prod
 
 FROM base AS build
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile
+COPY package.json ./
+RUN pnpm install --no-frozen-lockfile
 COPY . .
 RUN pnpm db:generate
 

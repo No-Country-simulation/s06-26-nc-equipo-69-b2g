@@ -1,0 +1,46 @@
+# ============================================================
+# Render Blueprint — App BiT Backend
+# Docs: https://render.com/docs/blueprint-spec
+# ============================================================
+
+services:
+  - type: web
+    name: app-bit-backend
+    runtime: image
+    repo: https://github.com/No-Country-simulation/s06-26-nc-equipo-69-b2g
+    branch: main
+    dockerfilePath: ./backend/Dockerfile.prod
+    dockerContext: ./backend
+    healthCheckPath: /health
+    autoDeploy: true
+
+    envVars:
+      # ---- Application ----
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: API_URL
+        value: https://app-bit-backend.onrender.com
+      - key: CORS_ORIGIN
+        value: https://app-bit.vercel.app
+
+      # ---- Supabase (set these in Render dashboard) ----
+      - key: SUPABASE_PROJECT_REF
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # ---- Database (set in Render dashboard) ----
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+
+      # ---- OpenRouter AI (set in Render dashboard) ----
+      - key: OPENROUTER_API_KEY
+        sync: false

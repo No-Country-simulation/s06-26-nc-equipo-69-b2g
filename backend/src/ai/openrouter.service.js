@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { env } from '../config/env.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const systemPromptDocument = readFileSync(
@@ -9,11 +10,8 @@ const systemPromptDocument = readFileSync(
 );
 const SYSTEM_PROMPT = systemPromptDocument.match(/```text\n([\s\S]*?)\n```/)?.[1]?.trim() ?? systemPromptDocument;
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat';
-
 export async function callOpenRouter(userMessage) {
-  if (!OPENROUTER_API_KEY) {
+  if (!env.OPENROUTER_API_KEY) {
     return {
       role: 'assistant',
       content: `[MOCK] Basado en los datos proporcionados, se identificaron las siguientes brechas territoriales en la región consultada. **Sugerencia estratégica:** Se recomienda priorizar inversión en infraestructura 4G en las zonas identificadas antes de implementar programas de inclusión digital.`
@@ -23,11 +21,11 @@ export async function callOpenRouter(userMessage) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: env.OPENROUTER_MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
