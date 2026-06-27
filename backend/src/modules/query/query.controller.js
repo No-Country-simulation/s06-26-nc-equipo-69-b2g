@@ -19,14 +19,14 @@ export async function queryData(req, res, next) {
 
     let concQuery = supabase
       .from('tensor_concentracao')
-      .select('cluster, periodo, n_usuarios, drop_pct_medio, congestionamento_medio, download_bytes, lat, lon');
+      .select(
+        'cluster, periodo, n_usuarios, drop_pct_medio, congestionamento_medio, download_bytes, lat, lon'
+      );
     if (region) concQuery = concQuery.eq('cluster', region);
     const { data: concentracao, error: concError } = await concQuery.limit(50);
     if (concError) throw concError;
 
-    let antenasQuery = supabase
-      .from('antenas_flp')
-      .select('ecgi, cluster, municipio, lat, lon');
+    let antenasQuery = supabase.from('antenas_flp').select('ecgi, cluster, municipio, lat, lon');
     if (region) antenasQuery = antenasQuery.eq('cluster', region);
     const { data: antenas, error: antenasError } = await antenasQuery.limit(50);
     if (antenasError) throw antenasError;
