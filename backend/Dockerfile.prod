@@ -1,7 +1,8 @@
 # ============================================================
 # Dockerfile — Production-grade multi-stage build
-# Platform: Node 22 + pnpm + Prisma
-# Target:   Render / Docker Compose
+# Platform: Node 22 + pnpm + Prisma (monorepo)
+# Context:  Repo root (not backend/)
+# Target:   Render
 # ============================================================
 
 # ----------------------------
@@ -16,21 +17,27 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Stage 2: Production dependencies
 # ----------------------------
 FROM base AS deps
-COPY package.json .npmrc ./
-RUN pnpm install --no-frozen-lockfile --prod
+
+# Root monorepo files (needed by pnpm workspaces)
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Backend workspace package.json
+COPY backend/package.json backend/package.json
+
+RUN pnpm install --no-frozen-lockfile --filter backend --prod
 
 # ----------------------------
 # Stage 3: Build (full install + Prisma generate)
 # ----------------------------
 FROM base AS build
-COPY package.json .npmrc ./
-RUN pnpm install --no-frozen-lockfile
 
-COPY prisma ./prisma
-RUN pnpm db:generate
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY backend/package.json backend/package.json
+RUN pnpm install --no-frozen-lockfile --filter backend
 
-COPY src ./src
-COPY package.json ./
+COPY backend/prisma ./prisma
+RUN pnpm --filter backend db:generate
+
+COPY backend/src ./src
 
 # ----------------------------
 # Stage 4: Runner — minimal production image
@@ -43,11 +50,11 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 ENV NODE_ENV=production \
     PORT=3000
 
-# Security: create non-root user
+# Security: non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 --ingroup nodejs appuser
 
-# Install healthcheck dependency
+# Healthcheck dependency
 RUN apk add --no-cache wget
 
 # Copy production artifacts from previous stages
@@ -55,7 +62,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/src ./src
 COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/package.json ./
+COPY --from=build /app/backend/package.json ./package.json
 
 # Secure ownership
 RUN chown -R appuser:nodejs /app
