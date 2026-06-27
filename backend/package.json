@@ -46,5 +46,8 @@
     "prisma": "^5.22.0",
     "supertest": "^7.2.2",
     "vitest": "^4.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "prisma", "@scarf/scarf"]
   }
 }
