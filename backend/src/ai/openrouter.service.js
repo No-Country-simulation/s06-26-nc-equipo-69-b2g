@@ -3,10 +3,11 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SYSTEM_PROMPT = readFileSync(
+const systemPromptDocument = readFileSync(
   join(__dirname, '../../../docs/Prompt_IA.md'),
   'utf-8'
 );
+const SYSTEM_PROMPT = systemPromptDocument.match(/```text\n([\s\S]*?)\n```/)?.[1]?.trim() ?? systemPromptDocument;
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat';

@@ -1,137 +1,77 @@
-# ETL Pipeline - App BiT
+# CDRView Data Pipeline
 
-Este directorio contiene el pipeline ETL para la ingesta del dataset **Visent CDRView** en una base de datos SQLite (prueba) o Supabase/PostgreSQL (producción).
+Pipeline Python standalone para ingestar el dataset CDRView en Supabase/Postgres y calcular el riesgo de exclusion digital por cluster en `riesgo_regiao`.
 
-## Stack
+Este slice cubre ingesta y scoring. RAG/pgvector, OpenRouter y endpoints Express quedan fuera de este directorio.
 
-| Herramienta | Propósito |
-|-------------|-----------|
-| **Python 3.11+** | Lenguaje principal |
-| **Pandas** | Extracción y limpieza de CSVs |
-| **SQLAlchemy 2.x** | ORM y conexión a base de datos |
-| **Pydantic** | Validación de datos a nivel de fila |
-| **Loguru** | Logging estructurado |
-| **Typer** | CLI con tipado |
-| **Alembic** | Migraciones de esquema |
+## Database schema
 
-## Datasets
+El schema se gestiona con migraciones SQL de Supabase en `../supabase/migrations/`.
+Alembic fue removido de `etl-pipeline`; no hay flujo de migraciones Python para este slice.
 
-| Archivo | Tabla | Filas | Contenido |
-|---------|-------|-------|-----------|
-| `data/antenas_flp.csv` | `antenas` | 132 | Catálogo de antenas (PK: ecgi) |
-| `data/tensor_concentracao.csv` | `concentracao` | 7.920 | Concentración por antena/día/período |
+Aplica las migraciones Supabase antes de ejecutar el pipeline para crear estas tablas target:
 
-## Modelo original (sin normalizar)
-
-```mermaid
-erDiagram
-    antenas {
-        text ecgi PK "Identificador de celda"
-        varchar cluster "Nombre del cluster"
-        varchar municipio "Municipio"
-        float lat "Latitud"
-        float lon "Longitud"
-    }
-
-    concentracao {
-        int id PK "Auto-increment"
-        text ecgi "FK lógica (sin constraint)"
-        varchar cluster "Nombre del cluster"
-        varchar municipio "Municipio"
-        float lat "Latitud"
-        float lon "Longitud"
-        varchar day_date "Fecha YYYY-MM-DD"
-        varchar periodo "MADRUGADA|MANHA|TARDE|NOITE"
-        int n_usuarios "N\u00ba usuarios"
-        int n_sessoes "N\u00ba sesiones"
-        bigint download_bytes "Descarga (bytes)"
-        bigint upload_bytes "Subida (bytes)"
-        float dur_media_s "Duraci\u00f3n media (seg)"
-        float drop_pct_medio "Drop rate"
-        float congestionamento_medio "Congesti\u00f3n"
-        int chamadas_total "Llamadas"
-        int mensagens_total "Mensajes"
-    }
+```text
+clusters
+antenas_flp
+assinantes
+tensor_concentracao
+tensor_fluxo_vias
+tensor_mobilidade
+tensor_od
+tensor_sequencias
+tensor_tempo_deslocamento
+riesgo_regiao
+documents_vectors
 ```
 
-> **Problema:** `cluster`, `municipio`, `lat` y `lon` están repetidos en ambas tablas, violando 2FN/3FN.
+La carga recarga las tablas CSV target con `TRUNCATE` sin `CASCADE`. Es intencional: esas tablas son hijas de `clusters` y no se truncan tablas padre ni tablas publicadas como `riesgo_regiao`. Si en el futuro otra tabla referencia estos targets, hay que ajustar el orden de carga o habilitar `cascade=True` de forma explicita para esa llamada, sabiendo que tambien borraria datos dependientes.
 
-## Modelo normalizado (3FN)
-
-```mermaid
-erDiagram
-    antenas {
-        text ecgi PK "Identificador de celda"
-        varchar cluster "Nombre del cluster"
-        varchar municipio "Municipio"
-        float lat "Latitud"
-        float lon "Longitud"
-    }
-
-    concentracao {
-        int id PK "Auto-increment"
-        text ecgi FK "FK ~] antenas.ecgi"
-        varchar day_date "Fecha YYYY-MM-DD"
-        varchar periodo "MADRUGADA|MANHA|TARDE|NOITE"
-        int n_usuarios "N\u00ba usuarios"
-        int n_sessoes "N\u00ba sesiones"
-        bigint download_bytes "Descarga (bytes)"
-        bigint upload_bytes "Subida (bytes)"
-        float dur_media_s "Duraci\u00f3n media (seg)"
-        float drop_pct_medio "Drop rate"
-        float congestionamento_medio "Congesti\u00f3n"
-        int chamadas_total "Llamadas"
-        int mensagens_total "Mensajes"
-    }
-
-    antenas ||--o{ concentracao : "tiene"
-```
-
-> **Nota:** `concentracao` tiene una constraint `UNIQUE(ecgi, day_date, periodo)` y una FK hacia `antenas.ecgi`. No se repite `cluster`, `municipio`, `lat` ni `lon`.
-
-## Flujo de trabajo
-
-### 1. Desarrollo local con SQLite
+## Setup
 
 ```bash
-# Instalar dependencias
+cd etl-pipeline
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
-
-# Ejecutar ETL contra SQLite (sin .env — usa defaults)
-python scripts/run_etl.py --db sqlite
-
-# Vista previa sin escribir
-python scripts/run_etl.py --db sqlite --dry-run
-
-# Forzar recarga (truncar + insertar)
-python scripts/run_etl.py --db sqlite --force
-
-# Correr tests
-pytest tests/ -v
 ```
 
-### 2. Producción con Supabase / PostgreSQL
+Copia `.env.example` a `.env` y completa una conexion Postgres server-side. `DIRECT_URL` es preferible para carga batch; si no existe, se usa `DATABASE_URL`.
+
+## Dataset
+
+Los CSV no van commiteados. Colocalos en el directorio indicado por `CDRVIEW_DATA_DIR` (default `./data`):
+
+```text
+etl-pipeline/data/
+  referencias/
+    antenas_flp.csv
+    assinantes.csv
+    clusters.csv            # opcional si la tabla clusters ya esta seeded
+  tensores/
+    tensor_concentracao.csv
+    tensor_fluxo_vias.csv
+    tensor_mobilidade.csv
+    tensor_od.csv
+    tensor_sequencias.csv
+    tensor_tempo_deslocamento.csv
+```
+
+`tensor_mobilidade.csv` y `tensor_sequencias.csv` pueden pesar varios GB. El pipeline los procesa en chunks para insertarlos en Postgres; no los carga completos en memoria. Durante la carga de `tensor_mobilidade.csv`, el mismo scan acumula `pct_legacy_tech` por cluster para evitar leer el archivo una segunda vez en el scoring.
+
+## Uso
 
 ```bash
-# Configurar entorno
-cp .env.example .env
+python scripts/run_etl.py
 ```
 
-Editar `.env`:
-```
-DB_TYPE=postgresql
-DATABASE_URL=postgresql://project.user:password@aws-0-region.pooler.supabase.com:6543/postgres
-```
+Orden de ejecucion:
 
-```bash
-# Ejecutar migraciones (lee DATABASE_URL del entorno automáticamente)
-alembic upgrade head
-
-# Ejecutar ETL
-python scripts/run_etl.py --db postgresql
-```
-
-> **Nota:** `SSL_MODE=require` se agrega automáticamente si la URL no lo incluye. Para PostgreSQL local, setear `SSL_MODE=disable`.
+1. Hace upsert de `clusters.csv` si existe; si no existe, valida que `clusters` ya tenga datos.
+2. Recarga referencias y tensores con truncate + bulk insert por chunks.
+3. Acumula `pct_legacy_tech` por cluster durante la carga chunked de `tensor_mobilidade`.
+4. Calcula `infra`, `concentracion`, `vulnerabilidad`, `score_riesgo`, `nivel_riesgo` y `sin_cobertura`.
+5. Hace upsert en `riesgo_regiao` por `cluster`.
 
 ## Tests
 
@@ -139,4 +79,4 @@ python scripts/run_etl.py --db postgresql
 pytest tests/ -v
 ```
 
-*Para más información sobre el proyecto, revisa el [README principal](../README.md).*
+Los tests actuales son unitarios y no requieren DB real ni dataset completo.

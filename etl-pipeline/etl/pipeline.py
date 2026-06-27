@@ -1,158 +1,150 @@
-from collections.abc import Sequence
 from pathlib import Path
 
-import pandas as pd
-from loguru import logger
-from sqlalchemy import Engine, text
-
-from etl.clean import clean_antenas, clean_concentracao
 from etl.config import Settings
-from etl.database import get_engine, session_scope
-from etl.models import Antena, Base, Concentracao
-from etl.schemas import AntenaSchema, ConcentracaoSchema
+from etl.database import count_rows, get_connection, upsert_riesgo_regiao
+from etl.loaders import (
+    load_antenas_flp,
+    load_assinantes,
+    load_clusters,
+    load_tensor_concentracao,
+    load_tensor_fluxo_vias,
+    load_tensor_mobilidade,
+    load_tensor_od,
+    load_tensor_sequencias,
+    load_tensor_tempo_deslocamento,
+    read_assinantes_df,
+    read_tensor_concentracao_df,
+)
+from etl.mobilidade import compute_pct_legacy_tech_by_cluster
+from etl.score import (
+    compute_concentracion,
+    compute_infra,
+    compute_score,
+    compute_vulnerabilidad,
+    nivel_riesgo,
+)
 
 
-_CHUNK_SIZE = 500
-
-
-def extract_csv(path: Path, dtype: dict | None = None) -> pd.DataFrame:
-    logger.info("Extracting {}", path)
-    return pd.read_csv(path, dtype=dtype or {})
-
-
-def validate_records(df: pd.DataFrame, schema_model: type) -> list[dict]:
-    logger.info("Validating {} rows with Pydantic", len(df))
-    records = df.to_dict(orient="records")
-    valid = []
-    errors = 0
-    for i, row in enumerate(records):
-        try:
-            validated = schema_model(**row)
-            valid.append(validated.model_dump())
-        except Exception as e:
-            errors += 1
-            if errors <= 5:
-                logger.warning("Row {} validation error: {} -- data: {}", i, e, row)
-    if errors:
-        logger.warning("Total validation errors: {}", errors)
-    return valid
-
-
-def create_tables(engine: Engine) -> None:
-    logger.info("Creating tables if not exist...")
-    Base.metadata.create_all(engine)
-    logger.info("Tables verified/created successfully")
-
-
-def truncate_tables(engine: Engine) -> None:
-    logger.info("Dropping and recreating tables...")
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    logger.info("Tables recreated successfully")
-
-
-def _dialect_insert(model: type, dialect_name: str):
-    if dialect_name == "sqlite":
-        from sqlalchemy.dialects.sqlite import insert as ins
-    elif dialect_name == "postgresql":
-        from sqlalchemy.dialects.postgresql import insert as ins
-    else:
-        ins = __import__("sqlalchemy").insert
-    index_elements = (
-        ["ecgi", "day_date", "periodo"] if model.__tablename__ == "concentracao"
-        else ["ecgi"]
-    )
-    return ins(model).on_conflict_do_nothing(index_elements=index_elements)
-
-
-def load_records(engine: Engine, model: type, records: list[dict]) -> int:
-    logger.info("Loading {} records into {}...", len(records), model.__tablename__)
-    total = len(records)
-    stmt = _dialect_insert(model, engine.dialect.name)
-    with session_scope(engine) as session:
-        before = session.query(model).count()
-        for i in range(0, total, _CHUNK_SIZE):
-            chunk = records[i : i + _CHUNK_SIZE]
-            session.execute(stmt, chunk)
-        after = session.query(model).count()
-    inserted = after - before
-    skipped = total - inserted
-    logger.success(
-        "Inserted {} records into {} ({} skipped)",
-        inserted, model.__tablename__, skipped,
-    )
-    return inserted
-
-
-def run_pipeline(
-    settings: Settings,
-    *,
-    dry_run: bool = False,
-    force: bool = False,
-) -> dict:
-    logger.info("=" * 60)
-    logger.info("App BiT -- ETL Pipeline")
-    logger.info("Database type: {}", settings.db_type)
-    logger.info("Dry run: {}", dry_run)
-    logger.info("=" * 60)
-
-    engine = get_engine(settings.sqlalchemy_url(), settings.db_type)
-
-    if not dry_run:
-        create_tables(engine)
-        if force:
-            truncate_tables(engine)
-
-    datasets: Sequence[tuple[str, Path, type, pd.DataFrame]] = [
-        ("antenas_flp.csv", settings.resolved_antenas_csv, AntenaSchema, None),
-        ("tensor_concentracao.csv", settings.resolved_concentracao_csv, ConcentracaoSchema, None),
-    ]
-
-    results = {}
-
-    for name, path, schema_model, _ in datasets:
-        logger.info("--- Processing {} ---", name)
-
-        df = extract_csv(path, dtype={"ecgi": str})
-
-        if name == "antenas_flp.csv":
-            df = clean_antenas(df)
-        elif name == "tensor_concentracao.csv":
-            df = clean_concentracao(df)
-
-        validated = validate_records(df, schema_model)
-
-        label = name.replace(".csv", "")
-        result = {
-            "raw": int(len(df)),
-            "validated": len(validated),
-            "loaded": 0,
+def fetch_clusters_metadata(conn) -> dict[str, dict]:
+    with conn.cursor() as cur:
+        cur.execute("SELECT cluster, municipio, lat, lon FROM clusters")
+        return {
+            row[0]: {"municipio": row[1], "lat": row[2], "lon": row[3]}
+            for row in cur.fetchall()
         }
 
-        logger.info(
-            "{}: {} raw -> {} clean -> {} validated",
-            label, len(df), len(df), len(validated),
+
+def compute_riesgo_rows(
+    conn,
+    data_dir: Path,
+    pct_legacy_tech_by_cluster: dict[str, float] | None = None,
+) -> list[dict]:
+    tensor_df = read_tensor_concentracao_df(data_dir)
+    assinantes_df = read_assinantes_df(data_dir)
+    if pct_legacy_tech_by_cluster is None:
+        pct_legacy_tech_by_cluster = compute_pct_legacy_tech_by_cluster(data_dir)
+    clusters_meta = fetch_clusters_metadata(conn)
+
+    tensor_agg = tensor_df.groupby("cluster").agg(
+        congestion=("congestionamento_medio", "mean"),
+        drop=("drop_pct_medio", "mean"),
+        n_usuarios_total=("n_usuarios", "sum"),
+    )
+    max_n_usuarios = int(tensor_agg["n_usuarios_total"].max()) if not tensor_agg.empty else 0
+
+    vulnerabilidad_by_cluster = assinantes_df.groupby("home_cluster")["income_cluster"].apply(
+        lambda series: compute_vulnerabilidad((series.isin(["C", "D"])).sum(), len(series))
+    )
+    poblacion_by_cluster = assinantes_df.groupby("home_cluster").size()
+
+    rows = []
+    for cluster, meta in clusters_meta.items():
+        vulnerabilidad = float(vulnerabilidad_by_cluster.get(cluster, 0.0))
+        sin_cobertura = cluster not in tensor_agg.index
+
+        if sin_cobertura:
+            infra = 1.0
+            concentracion = 1.0
+            congestion = 0.0
+            pct_legacy_tech = 0.0
+            n_usuarios_total = int(poblacion_by_cluster.get(cluster, 0))
+        else:
+            congestion = float(tensor_agg.loc[cluster, "congestion"])
+            drop = float(tensor_agg.loc[cluster, "drop"])
+            n_usuarios_total = int(tensor_agg.loc[cluster, "n_usuarios_total"])
+            pct_legacy_tech = float(pct_legacy_tech_by_cluster.get(cluster, 0.0))
+            infra = compute_infra(congestion, drop, pct_legacy_tech)
+            concentracion = compute_concentracion(n_usuarios_total, max_n_usuarios)
+
+        score = compute_score(infra, concentracion, vulnerabilidad)
+        rows.append(
+            {
+                "cluster": cluster,
+                "municipio": meta["municipio"],
+                "lat": meta["lat"],
+                "lon": meta["lon"],
+                "score_riesgo": score,
+                "infra": infra,
+                "concentracion": concentracion,
+                "vulnerabilidad": vulnerabilidad,
+                "n_usuarios_total": n_usuarios_total,
+                "pct_legacy_tech": pct_legacy_tech,
+                "pct_renta_baja": vulnerabilidad,
+                "congestion_media": congestion,
+                "nivel_riesgo": nivel_riesgo(score),
+                "sin_cobertura": sin_cobertura,
+            }
         )
 
-        if not dry_run:
-            model_class = Antena if name == "antenas_flp.csv" else Concentracao
-            result["loaded"] = load_records(engine, model_class, validated)
-
-        results[label] = result
-
-    if not dry_run:
-        results["antenas_flp"]["in_db"] = count_rows(engine, "antenas")
-        results["tensor_concentracao"]["in_db"] = count_rows(engine, "concentracao")
-
-    logger.info("=" * 60)
-    logger.info("Pipeline completed")
-    logger.info("=" * 60)
-
-    return results
+    return rows
 
 
-def count_rows(engine: Engine, table_name: str) -> int:
-    with session_scope(engine) as session:
-        return session.execute(
-            text(f"SELECT COUNT(*) FROM {table_name}")
-        ).scalar()
+def run_pipeline(settings: Settings) -> dict[str, int | None]:
+    data_dir = settings.data_dir
+    conn = get_connection(settings.postgres_url)
+    try:
+        clusters_loaded = load_clusters(conn, data_dir)
+        clusters_count = count_rows(conn, "clusters")
+        if clusters_count == 0:
+            raise RuntimeError(
+                "clusters is empty. Provide clusters.csv or apply the database seed before running."
+            )
+
+        antenas_count = load_antenas_flp(conn, data_dir)
+        assinantes_count = load_assinantes(conn, data_dir)
+        tensor_count = load_tensor_concentracao(conn, data_dir)
+        tensor_fluxo_vias_count = load_tensor_fluxo_vias(conn, data_dir)
+        tensor_mobilidade_count, pct_legacy_tech_by_cluster = load_tensor_mobilidade(
+            conn,
+            data_dir,
+            max_rows=settings.mobilidade_max_rows,
+            sample_mod=settings.sample_mod,
+        )
+        tensor_od_count = load_tensor_od(conn, data_dir)
+        tensor_sequencias_count = load_tensor_sequencias(
+            conn,
+            data_dir,
+            max_rows=settings.sequencias_max_rows,
+            sample_mod=settings.sample_mod,
+        )
+        tensor_tempo_deslocamento_count = load_tensor_tempo_deslocamento(conn, data_dir)
+        scored_count = upsert_riesgo_regiao(
+            conn,
+            compute_riesgo_rows(conn, data_dir, pct_legacy_tech_by_cluster),
+        )
+
+        return {
+            "clusters_loaded": clusters_loaded,
+            "clusters_in_db": clusters_count,
+            "antenas_flp": antenas_count,
+            "assinantes": assinantes_count,
+            "tensor_concentracao": tensor_count,
+            "tensor_fluxo_vias": tensor_fluxo_vias_count,
+            "tensor_mobilidade": tensor_mobilidade_count,
+            "tensor_od": tensor_od_count,
+            "tensor_sequencias": tensor_sequencias_count,
+            "tensor_tempo_deslocamento": tensor_tempo_deslocamento_count,
+            "riesgo_regiao": scored_count,
+        }
+    finally:
+        conn.close()
