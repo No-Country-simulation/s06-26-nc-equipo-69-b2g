@@ -1,0 +1,48 @@
+# ============================================================
+# Backend CI — triggered on dev/backend branch
+# Runs lint, tests, format check, and Docker build
+# ============================================================
+
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [dev/backend]
+  push:
+    branches: [dev/backend]
+
+jobs:
+  validate:
+    name: Validate backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter backend db:generate
+
+      - name: Lint
+        run: pnpm --filter backend lint
+
+      - name: Check formatting
+        run: pnpm --filter backend format
+
+      - name: Run tests
+        run: pnpm --filter backend test
+
+      - name: Build Docker image
+        run: docker build -t app-bit-backend -f backend/Dockerfile.prod backend/
