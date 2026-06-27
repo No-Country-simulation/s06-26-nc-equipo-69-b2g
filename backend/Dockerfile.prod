@@ -60,7 +60,6 @@ RUN apk add --no-cache wget
 
 # Copy production artifacts from previous stages
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/src ./src
 COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/package.json ./package.json
