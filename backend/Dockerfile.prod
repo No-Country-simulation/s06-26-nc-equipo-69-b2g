@@ -14,7 +14,19 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # ----------------------------
-# Stage 2: Build (install + Prisma generate)
+# Stage 2: Production dependencies
+# ----------------------------
+FROM base AS deps
+
+# Root monorepo files (needed by pnpm workspaces)
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Backend workspace package.json
+COPY backend/package.json backend/package.json
+
+RUN pnpm install --no-frozen-lockfile --filter backend --prod
+
+# ----------------------------
+# Stage 3: Build (full install + Prisma generate)
 # ----------------------------
 FROM base AS build
 
@@ -47,7 +59,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 RUN apk add --no-cache wget
 
 # Copy production artifacts from previous stages
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/src ./src
 COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/package.json ./package.json
