@@ -54,7 +54,7 @@ RUN apk add --no-cache wget
 # Copy the entire workspace from build — preserves the original
 # pnpm workspace structure so module resolution works correctly.
 COPY --from=build /app /app
-COPY docs/Prompt_IA.md /docs/Prompt_IA.md
+COPY docs/Prompt_IA.md ./docs/Prompt_IA.md
 
 # Set working directory inside the backend workspace
 WORKDIR /app/backend
