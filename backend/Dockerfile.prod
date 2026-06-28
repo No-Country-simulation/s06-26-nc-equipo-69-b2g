@@ -14,34 +14,27 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # ----------------------------
-# Stage 2: Production dependencies
+# Stage 2: Install & Build
 # ----------------------------
-FROM base AS deps
+FROM base AS build
 
 # Root monorepo files (needed by pnpm workspaces)
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 # Backend workspace package.json
 COPY backend/package.json backend/package.json
-
-RUN pnpm install --no-frozen-lockfile --filter backend --prod
-
-# ----------------------------
-# Stage 3: Build (full install + Prisma generate)
-# ----------------------------
-FROM base AS build
-
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY backend/package.json backend/package.json
+# Backend scripts (custom db:generate, etc.)
 COPY backend/scripts backend/scripts
+
 RUN pnpm install --no-frozen-lockfile --filter backend
 
+# Copy source preserving the workspace structure
 COPY backend/prisma ./backend/prisma
+COPY backend/src ./backend/src
+
 RUN pnpm --filter backend db:generate
 
-COPY backend/src ./src
-
 # ----------------------------
-# Stage 4: Runner — minimal production image
+# Stage 3: Runner — production image
 # ----------------------------
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -58,12 +51,13 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Healthcheck dependency
 RUN apk add --no-cache wget
 
-# Copy production artifacts from previous stages
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/src ./src
-COPY --from=build /app/backend/prisma ./prisma
-COPY --from=build /app/backend/package.json ./package.json
+# Copy the entire workspace from build — preserves the original
+# pnpm workspace structure so module resolution works correctly.
+COPY --from=build /app /app
 COPY docs/Prompt_IA.md /docs/Prompt_IA.md
+
+# Set working directory inside the backend workspace
+WORKDIR /app/backend
 
 # Secure ownership
 RUN chown -R appuser:nodejs /app
