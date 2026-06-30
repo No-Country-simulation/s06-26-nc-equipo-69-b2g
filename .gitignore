@@ -24,6 +24,7 @@ docs-spec/
 .turbo/
 **/.turbo/
 mcp.json
+opencode.json
 
 # Logs
 *.log
