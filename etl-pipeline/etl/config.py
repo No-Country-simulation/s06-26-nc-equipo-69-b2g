@@ -1,56 +1,43 @@
+import os
 from pathlib import Path
-from urllib.parse import urlencode, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
 
 
-class Settings(BaseSettings):
-    db_type: str = "sqlite"
-    sqlite_path: str = "data/visent.db"
-    database_url: str | None = None
-    ssl_mode: str = "require"
-    data_dir: str = "data"
-    concentracao_csv: str = "data/tensor_concentracao.csv"
-    antenas_csv: str = "data/antenas_flp.csv"
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-    @property
-    def resolved_concentracao_csv(self) -> Path:
-        return Path(self.concentracao_csv).resolve()
+class Settings:
+    def __init__(self, env_file: str | Path | None = ".env") -> None:
+        if env_file:
+            load_dotenv(env_file)
+        self.cdrview_data_dir = os.getenv("CDRVIEW_DATA_DIR", "./data")
+        self.database_url = os.getenv("DATABASE_URL")
+        self.direct_url = os.getenv("DIRECT_URL")
+        self.mobilidade_max_rows = _int_or_none(os.getenv("CDRVIEW_MOBILIDADE_MAX_ROWS"))
+        self.sequencias_max_rows = _int_or_none(os.getenv("CDRVIEW_SEQUENCIAS_MAX_ROWS"))
+        # Representative subscriber sample: keep rows where assinante_hash % N == 0.
+        # Applied to mobilidade + sequencias so the sample is coherent (same subs)
+        # and spread across all clusters. None = no sampling (load full).
+        self.sample_mod = _int_or_none(os.getenv("CDRVIEW_SAMPLE_MOD"))
 
     @property
-    def resolved_antenas_csv(self) -> Path:
-        return Path(self.antenas_csv).resolve()
+    def data_dir(self) -> Path:
+        return Path(self.cdrview_data_dir).resolve()
 
     @property
-    def resolved_sqlite_path(self) -> Path:
-        return Path(self.sqlite_path).resolve()
+    def postgres_url(self) -> str:
+        raw_url = self.direct_url or self.database_url
+        if not raw_url:
+            raise RuntimeError("DIRECT_URL or DATABASE_URL is required to run the pipeline")
+        return _strip_pgbouncer_param(raw_url)
 
-    @property
-    def is_sqlite(self) -> bool:
-        return self.db_type == "sqlite"
 
-    @property
-    def is_postgres(self) -> bool:
-        return self.db_type == "postgresql"
+def _int_or_none(value: str | None) -> int | None:
+    if value is None or value.strip() == "":
+        return None
+    return int(value)
 
-    def sqlalchemy_url(self) -> str:
-        if self.is_sqlite:
-            return f"sqlite:///{self.resolved_sqlite_path}"
-        if not self.database_url:
-            raise ValueError("DATABASE_URL is required when DB_TYPE=postgresql")
-        url = self.database_url
-        if self.is_postgres and self.ssl_mode:
-            parsed = urlparse(url)
-            if parsed.scheme in ("postgresql", "postgres"):
-                qs = dict(pair.split("=", 1) for pair in parsed.query.split("&") if pair)
-                if "sslmode" not in qs:
-                    qs["sslmode"] = self.ssl_mode
-                    new_qs = urlencode(qs)
-                    url = urlunparse(parsed._replace(query=new_qs))
-        return url
+
+def _strip_pgbouncer_param(url: str) -> str:
+    parts = urlsplit(url)
+    query = [(key, value) for key, value in parse_qsl(parts.query) if key != "pgbouncer"]
+    return urlunsplit(parts._replace(query=urlencode(query)))
