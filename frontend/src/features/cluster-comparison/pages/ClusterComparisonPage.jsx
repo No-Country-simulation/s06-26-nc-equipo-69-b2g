@@ -1,8 +1,31 @@
+import { useState } from 'react'
 import { FileDown, Bot } from 'lucide-react'
 import ClusterFilters from '../components/ClusterFilters'
 import ClusterTable from '../components/ClusterTable'
 
+function formatClusterName(name) {
+  return name
+    .split('_')
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(' · ')
+}
+
 export default function ClusterComparisonPage() {
+  const [selected, setSelected] = useState([])
+
+  const handleToggle = (name) => {
+    setSelected((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    )
+  }
+
+  const selectedNames = selected
+    .map((n) => formatClusterName(n))
+    .slice(0, 3)
+    .join(' · ')
+
+  const remaining = selected.length > 3 ? ` · +${selected.length - 3} más` : ''
+
   return (
     <main className="min-h-full bg-[#F2F3F1] px-4 py-8 sm:px-6 md:px-10 lg:px-12">
       <div className="mx-auto w-full max-w-7xl">
@@ -14,14 +37,22 @@ export default function ClusterComparisonPage() {
         </div>
         <section className="rounded-2xl border border-[#E2E4DF] bg-white p-4 shadow-[0_1px_2px_rgba(20,30,35,0.07)] sm:p-5">
           <ClusterFilters />
-          <ClusterTable />
+          <ClusterTable selected={selected} onToggle={handleToggle} />
         </section>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E2E4DF] bg-white px-4 py-2.5 shadow-[0_1px_2px_rgba(20,30,35,0.07)]">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900">2 clusters seleccionados</span>
-            <span className="text-sm text-gray-400">·</span>
-            <span className="text-sm text-gray-400">São José · Kobrasol · Palhoça Centro</span>
+            <span className="text-sm font-semibold text-gray-900">
+              {selected.length > 0
+                ? `${selected.length} ${selected.length === 1 ? 'cluster seleccionado' : 'clusters seleccionados'}`
+                : 'Ningún cluster seleccionado'}
+            </span>
+            {selected.length > 0 && (
+              <>
+                <span className="text-sm text-gray-400">·</span>
+                <span className="text-sm text-gray-400">{selectedNames}{remaining}</span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button className="inline-flex items-center gap-1.5 rounded-lg border border-[#564C8E]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#564C8E] transition-colors hover:bg-[#564C8E]/5">
