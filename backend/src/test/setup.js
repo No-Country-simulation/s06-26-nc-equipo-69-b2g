@@ -3,7 +3,8 @@ import { vi } from 'vitest';
 process.env.NODE_ENV = 'test';
 process.env.SUPABASE_URL ??= 'https://test.supabase.co';
 process.env.SUPABASE_ANON_KEY ??= 'test-anon-key';
-process.env.DATABASE_URL ??= 'postgresql://postgres:test@localhost:5432/postgres';// Prevent real Supabase/DB connections in tests>>>>>>> c0ff1c46cb2999288c69e0449f686b59a243f55a
+process.env.DATABASE_URL ??= 'postgresql://postgres:test@localhost:5432/postgres';
+process.env.JWT_SECRET ??= 'test-jwt-secret';
 
 vi.mock('../lib/supabase.js', () => ({
   supabase: {
