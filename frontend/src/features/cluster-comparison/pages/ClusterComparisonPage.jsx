@@ -12,10 +12,18 @@ function formatClusterName(name) {
 
 export default function ClusterComparisonPage() {
   const [selected, setSelected] = useState([])
+  const [activeFilters, setActiveFilters] = useState(['ALTO', 'MEDIO'])
+  const [search, setSearch] = useState('')
 
   const handleToggle = (name) => {
     setSelected((prev) =>
       prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    )
+  }
+
+  const handleToggleFilter = (id) => {
+    setActiveFilters((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
     )
   }
 
@@ -36,8 +44,18 @@ export default function ClusterComparisonPage() {
           </p>
         </div>
         <section className="rounded-2xl border border-[#E2E4DF] bg-white p-4 shadow-[0_1px_2px_rgba(20,30,35,0.07)] sm:p-5">
-          <ClusterFilters />
-          <ClusterTable selected={selected} onToggle={handleToggle} />
+          <ClusterFilters
+            activeFilters={activeFilters}
+            onToggleFilter={handleToggleFilter}
+            search={search}
+            onSearchChange={setSearch}
+          />
+          <ClusterTable
+            selected={selected}
+            onToggle={handleToggle}
+            activeFilters={activeFilters}
+            search={search}
+          />
         </section>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E2E4DF] bg-white px-4 py-2.5 shadow-[0_1px_2px_rgba(20,30,35,0.07)]">

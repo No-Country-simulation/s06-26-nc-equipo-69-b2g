@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Info, WifiOff } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Info, WifiOff, SearchX } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -49,7 +49,7 @@ function generarAccion(cluster) {
 
 const riskInfo = 'Score calculado a partir de concentración, congestión, movilidad y conectividad.'
 
-export default function ClusterTable({ selected = [], onToggle }) {
+export default function ClusterTable({ selected = [], onToggle, activeFilters = ['ALTO', 'MEDIO'], search = '' }) {
   const [clusters, setClusters] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -75,6 +75,25 @@ export default function ClusterTable({ selected = [], onToggle }) {
     fetchClusters()
   }, [])
 
+  const filtered = useMemo(() => {
+    let result = clusters
+
+    // Filtrar por nivel de riesgo
+    result = result.filter((c) => activeFilters.includes(c.nivel_riesgo))
+
+    // Filtrar por búsqueda
+    if (search.trim()) {
+      const term = search.toLowerCase()
+      result = result.filter(
+        (c) =>
+          c.cluster.toLowerCase().includes(term) ||
+          c.municipio.toLowerCase().includes(term)
+      )
+    }
+
+    return result
+  }, [clusters, activeFilters, search])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -88,6 +107,25 @@ export default function ClusterTable({ selected = [], onToggle }) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
         <p className="text-sm text-red-700">Error al cargar datos: {error}</p>
+      </div>
+    )
+  }
+
+  if (filtered.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+        <SearchX className="mb-2 h-8 w-8" />
+        <p className="text-sm">No se encontraron clusters con los filtros actuales</p>
+        {(search || activeFilters.length < 2) && (
+          <button
+            onClick={() => {
+              // limpiar búsqueda y filtros lo maneja el padre via props
+            }}
+            className="mt-2 text-xs text-[#564C8E] hover:underline"
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
     )
   }
@@ -108,7 +146,7 @@ export default function ClusterTable({ selected = [], onToggle }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {clusters.map((c) => {
+          {filtered.map((c) => {
             const name = formatClusterName(c.cluster)
             return (
               <TableRow key={c.cluster} className={c.sin_cobertura ? 'bg-gray-50' : ''}>
