@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import { Info, WifiOff, SearchX, ChevronDown, ChevronUp, ChevronsUpDown, ChevronRight } from 'lucide-react'
 import {
   Table,
@@ -412,109 +412,109 @@ export default function ClusterTable({ selected = [], onToggle, activeFilters = 
             const name = formatClusterName(c.cluster)
             const isExpanded = expanded === c.cluster
             return (
-              <TableRow
-                key={c.cluster}
-                className={`${c.sin_cobertura ? 'bg-gray-50' : ''} ${isExpanded ? 'bg-[#F8F7FC]' : ''}`}
-              >
-                <TableCell className="px-3 py-2.5">
-                  <Checkbox
-                    checked={selected.includes(c.cluster)}
-                    onCheckedChange={() => onToggle(c.cluster)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="data-[state=checked]:border-[#564C8E] data-[state=checked]:bg-[#564C8E] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
-                  />
-                </TableCell>
-                <TableCell
-                  className="cursor-pointer px-3 py-2.5 text-xs font-medium transition-colors hover:text-[#564C8E]"
-                  onClick={() => handleRowClick(c.cluster)}
+              <Fragment key={c.cluster}>
+                <TableRow
+                  className={`${c.sin_cobertura ? 'bg-gray-50' : ''} ${isExpanded ? 'bg-[#F8F7FC]' : ''}`}
                 >
-                  <div className="flex items-center gap-1.5">
-                    {isExpanded ? <ChevronDown className="h-3 w-3 text-[#564C8E]" /> : <ChevronRight className="h-3 w-3 text-gray-300" />}
-                    {name}
-                    {c.sin_cobertura && (
-                      <span title="Sin cobertura">
-                        <WifiOff className="h-3 w-3 text-red-400" />
-                      </span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="cursor-pointer px-3 py-2.5 text-right text-xs tabular-nums transition-colors hover:text-[#564C8E]"
-                  onClick={() => handleRowClick(c.cluster)}>
-                  {formatNumber(c.n_usuarios_total)}
-                </TableCell>
-                <TableCell className="cursor-pointer px-3 py-2.5 text-xs tabular-nums transition-colors hover:text-[#564C8E]"
-                  onClick={() => handleRowClick(c.cluster)}>
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-1.5 w-10 rounded-full bg-gray-200">
-                      <div
-                        className="h-1.5 rounded-full"
-                        style={{
-                          width: `${Math.round(c.score_riesgo * 100)}%`,
-                          backgroundColor: c.score_riesgo > 0.6 ? '#EF4444' : c.score_riesgo > 0.45 ? '#EAB308' : '#22C55E',
-                        }}
-                      />
+                  <TableCell className="px-3 py-2.5">
+                    <Checkbox
+                      checked={selected.includes(c.cluster)}
+                      onCheckedChange={() => onToggle(c.cluster)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="data-[state=checked]:border-[#564C8E] data-[state=checked]:bg-[#564C8E] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
+                    />
+                  </TableCell>
+                  <TableCell
+                    className="cursor-pointer px-3 py-2.5 text-xs font-medium transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      {isExpanded ? <ChevronDown className="h-3 w-3 text-[#564C8E]" /> : <ChevronRight className="h-3 w-3 text-gray-300" />}
+                      {name}
+                      {c.sin_cobertura && (
+                        <span title="Sin cobertura">
+                          <WifiOff className="h-3 w-3 text-red-400" />
+                        </span>
+                      )}
                     </div>
-                    <span className="text-[11px] text-gray-500">{c.score_riesgo.toFixed(3)}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
-                  onClick={() => handleRowClick(c.cluster)}>
-                  {c.pct_legacy_tech > 0 ? (
-                    <span>{calidadLabel(c.pct_legacy_tech)}</span>
-                  ) : (
-                    <span className="text-gray-400">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
-                  onClick={() => handleRowClick(c.cluster)}>
-                  {c.congestion_media > 0 ? (
-                    <span>{congestionLabel(c.congestion_media)}</span>
-                  ) : (
-                    <span className="text-gray-400">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
-                  onClick={() => handleRowClick(c.cluster)}>
-                  <div className="flex items-center gap-1">
-                    {c.nivel_riesgo === 'ALTO' ? (
-                      <Badge variant="outline" className="inline-flex items-center gap-1 border-red-300 bg-red-50 text-red-700 rounded-full px-2 py-0.5 text-[11px]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                        Alto
-                      </Badge>
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-right text-xs tabular-nums transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    {formatNumber(c.n_usuarios_total)}
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs tabular-nums transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-10 rounded-full bg-gray-200">
+                        <div
+                          className="h-1.5 rounded-full"
+                          style={{
+                            width: `${Math.round(c.score_riesgo * 100)}%`,
+                            backgroundColor: c.score_riesgo > 0.6 ? '#EF4444' : c.score_riesgo > 0.45 ? '#EAB308' : '#22C55E',
+                          }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-gray-500">{c.score_riesgo.toFixed(3)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    {c.pct_legacy_tech > 0 ? (
+                      <span>{calidadLabel(c.pct_legacy_tech)}</span>
                     ) : (
-                      <Badge variant="outline" className="inline-flex items-center gap-1 border-yellow-300 bg-yellow-50 text-yellow-700 rounded-full px-2 py-0.5 text-[11px]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
-                        Medio
-                      </Badge>
+                      <span className="text-gray-400">—</span>
                     )}
-                    <span className="group relative inline-flex cursor-help">
-                      <Info className="h-3 w-3 text-gray-400" />
-                      <span className="absolute bottom-full left-1/2 z-10 mb-1 w-48 -translate-x-1/2 rounded-md border bg-white px-2 py-1 text-[11px] text-gray-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                        Score {c.score_riesgo.toFixed(3)}.<br />{riskInfo}
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    {c.congestion_media > 0 ? (
+                      <span>{congestionLabel(c.congestion_media)}</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    <div className="flex items-center gap-1">
+                      {c.nivel_riesgo === 'ALTO' ? (
+                        <Badge variant="outline" className="inline-flex items-center gap-1 border-red-300 bg-red-50 text-red-700 rounded-full px-2 py-0.5 text-[11px]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                          Alto
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="inline-flex items-center gap-1 border-yellow-300 bg-yellow-50 text-yellow-700 rounded-full px-2 py-0.5 text-[11px]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                          Medio
+                        </Badge>
+                      )}
+                      <span className="group relative inline-flex cursor-help">
+                        <Info className="h-3 w-3 text-gray-400" />
+                        <span className="absolute bottom-full left-1/2 z-10 mb-1 w-48 -translate-x-1/2 rounded-md border bg-white px-2 py-1 text-[11px] text-gray-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                          Score {c.score_riesgo.toFixed(3)}.<br />{riskInfo}
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
-                  onClick={() => handleRowClick(c.cluster)}>
-                  {c.sin_cobertura ? (
-                    <span className="font-medium text-red-500">Sin cobertura</span>
-                  ) : (
-                    <span className="text-gray-700">{generarAccion(c)}</span>
-                  )}
-                </TableCell>
-              </TableRow>
+                    </div>
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    {c.sin_cobertura ? (
+                      <span className="font-medium text-red-500">Sin cobertura</span>
+                    ) : (
+                      <span className="text-gray-700">{generarAccion(c)}</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+
+                {isExpanded && (
+                  <TableRow className="bg-[#F8F7FC]">
+                    <TableCell colSpan={8} className="p-0">
+                      <RowDetail cluster={c} />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
             )
           })}
-
-          {/* Filas expandidas (después de la fila padre) */}
-          {sorted.filter((c) => expanded === c.cluster).map((c) => (
-            <TableRow key={`${c.cluster}-detail`} className="bg-[#F8F7FC]">
-              <TableCell colSpan={8} className="p-0">
-                <RowDetail cluster={c} />
-              </TableCell>
-            </TableRow>
-          ))}
         </TableBody>
       </Table>
     </div>
