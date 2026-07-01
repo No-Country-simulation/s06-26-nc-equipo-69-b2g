@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { createClient } from '@supabase/supabase-js';
 import { UnauthorizedError } from '../../utils/errors.js';
 import { env } from '../../config/env.js';
+import { generateToken } from './jwt.service.js';
 
 const supabaseAdmin = env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
@@ -20,7 +21,11 @@ export async function validateAndGetUser(accessToken) {
     .eq('id', authUser.id)
     .single();
 
-  if (appUser) return mapUser(appUser);
+  if (appUser) {
+    const user = mapUser(appUser);
+    const token = generateToken(user);
+    return { user, token };
+  }
 
   if (supabaseAdmin) {
     const { data: newUser } = await supabaseAdmin
@@ -35,7 +40,11 @@ export async function validateAndGetUser(accessToken) {
       .select('id, email, first_name, last_name, avatar_url')
       .single();
 
-    if (newUser) return mapUser(newUser);
+    if (newUser) {
+      const user = mapUser(newUser);
+      const token = generateToken(user);
+      return { user, token };
+    }
   }
 
   throw new UnauthorizedError('User not found');

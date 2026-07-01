@@ -13,9 +13,9 @@ export async function validateSession(req, res, next) {
       });
     }
 
-    const user = await validateAndGetUser(accessToken);
+    const { user, token } = await validateAndGetUser(accessToken);
 
-    res.json({ ok: true, user });
+    res.json({ ok: true, token, user });
   } catch (err) {
     next(err);
   }
