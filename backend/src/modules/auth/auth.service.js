@@ -1,53 +1,62 @@
-import { supabase } from '../../lib/supabase.js';
 import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../lib/supabase.js';
 import { UnauthorizedError } from '../../utils/errors.js';
 import { env } from '../../config/env.js';
-import { generateToken } from './jwt.service.js';
 
+// public.users has RLS enabled with no anon policies, so profile reads need
+// the service role. Without it we fall back to the validated auth payload.
 const supabaseAdmin = env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
   : null;
 
+const USER_COLUMNS = 'id, email, first_name, last_name, avatar_url';
+
 export async function validateAndGetUser(accessToken) {
-  const { data: { user: authUser }, error } = await supabase.auth.getUser(accessToken);
+  const {
+    data: { user: authUser },
+    error,
+  } = await supabase.auth.getUser(accessToken);
 
   if (error || !authUser) {
     throw new UnauthorizedError('Invalid or expired token');
   }
 
-  const { data: appUser } = await supabase
+  const client = supabaseAdmin ?? supabase;
+  const { data: appUser } = await client
     .from('users')
-    .select('id, email, first_name, last_name, avatar_url')
+    .select(USER_COLUMNS)
     .eq('id', authUser.id)
-    .single();
+    .maybeSingle();
 
   if (appUser) {
-    const user = mapUser(appUser);
-    const token = generateToken(user);
-    return { user, token };
+    return mapUser(appUser);
   }
 
+  // Row missing: the user pre-dates the on_auth_user_created trigger. Repair it.
   if (supabaseAdmin) {
-    const { data: newUser } = await supabaseAdmin
+    const { data: repaired } = await supabaseAdmin
       .from('users')
-      .upsert({
-        id: authUser.id,
-        email: authUser.email,
-        first_name: authUser.user_metadata?.given_name || null,
-        last_name: authUser.user_metadata?.family_name || null,
-        avatar_url: authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || null,
-      })
-      .select('id, email, first_name, last_name, avatar_url')
-      .single();
-
-    if (newUser) {
-      const user = mapUser(newUser);
-      const token = generateToken(user);
-      return { user, token };
+      .upsert(profileFromAuth(authUser))
+      .select(USER_COLUMNS)
+      .maybeSingle();
+    if (repaired) {
+      return mapUser(repaired);
     }
   }
 
-  throw new UnauthorizedError('User not found');
+  // No readable profile row — the token is valid, answer from the auth payload.
+  return mapUser(profileFromAuth(authUser));
+}
+
+function profileFromAuth(authUser) {
+  const meta = authUser.user_metadata ?? {};
+  return {
+    id: authUser.id,
+    email: authUser.email,
+    first_name: meta.given_name ?? null,
+    last_name: meta.family_name ?? null,
+    avatar_url: meta.avatar_url ?? meta.picture ?? null,
+  };
 }
 
 function mapUser(user) {

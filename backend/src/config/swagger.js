@@ -36,6 +36,7 @@ Vísent CDRView dataset ingested and stored in **Supabase (PostgreSQL)**.
     ],
     tags: [
       { name: 'Health', description: 'Service status' },
+      { name: 'Auth', description: 'Session validation (Supabase Auth)' },
       { name: 'Datos', description: 'CDR record queries and filtering' },
       { name: 'Mapa', description: 'Geospatial aggregations' },
     ],
