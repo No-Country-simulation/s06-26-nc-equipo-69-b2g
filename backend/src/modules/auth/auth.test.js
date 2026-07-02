@@ -2,6 +2,7 @@ import supertest from 'supertest';
 import { vi } from 'vitest';
 import { app } from '../../app.js';
 import { supabase } from '../../lib/supabase.js';
+import { verifyToken } from './jwt.service.js';
 
 const request = supertest(app);
 
@@ -54,6 +55,10 @@ describe('POST /api/v1/auth/session', () => {
       lastName: 'Diaz',
       avatarUrl: null,
     });
+    // Token exchange: the backend issues its own session token.
+    const payload = verifyToken(res.body.token);
+    expect(payload.sub).toBe(authUser.id);
+    expect(payload.email).toBe(authUser.email);
   });
 
   it('falls back to the auth payload when no profile row is readable', async () => {

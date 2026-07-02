@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase.js';
 import { UnauthorizedError } from '../../utils/errors.js';
 import { env } from '../../config/env.js';
+import { generateToken } from './jwt.service.js';
 
 // public.users has RLS enabled with no anon policies, so profile reads need
 // the service role. Without it we fall back to the validated auth payload.
@@ -29,7 +30,7 @@ export async function validateAndGetUser(accessToken) {
     .maybeSingle();
 
   if (appUser) {
-    return mapUser(appUser);
+    return sessionFor(appUser);
   }
 
   // Row missing: the user pre-dates the on_auth_user_created trigger. Repair it.
@@ -40,12 +41,18 @@ export async function validateAndGetUser(accessToken) {
       .select(USER_COLUMNS)
       .maybeSingle();
     if (repaired) {
-      return mapUser(repaired);
+      return sessionFor(repaired);
     }
   }
 
   // No readable profile row — the token is valid, answer from the auth payload.
-  return mapUser(profileFromAuth(authUser));
+  return sessionFor(profileFromAuth(authUser));
+}
+
+// Token exchange: every valid login returns our own session token + the user.
+function sessionFor(row) {
+  const user = mapUser(row);
+  return { user, token: generateToken(user) };
 }
 
 function profileFromAuth(authUser) {
