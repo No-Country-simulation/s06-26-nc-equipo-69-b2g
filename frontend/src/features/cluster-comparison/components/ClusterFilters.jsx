@@ -1,11 +1,13 @@
-import { Search, X } from 'lucide-react'
+import { Search, X, RotateCcw } from 'lucide-react'
 
 const filters = [
   { id: 'ALTO', label: 'Riesgo Alto', color: 'bg-red-500' },
   { id: 'MEDIO', label: 'Riesgo Medio', color: 'bg-yellow-500' },
 ]
 
-export default function ClusterFilters({ activeFilters, onToggleFilter, search, onSearchChange }) {
+export default function ClusterFilters({ activeFilters, onToggleFilter, search, onSearchChange, onClearAll }) {
+  const hasActiveFilters = activeFilters.length < 2 || search.length > 0
+
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       {/* Buscador */}
@@ -49,12 +51,23 @@ export default function ClusterFilters({ activeFilters, onToggleFilter, search, 
           <button
             key={f.id}
             onClick={() => onToggleFilter(f.id)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-white/50 px-3 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-white/80 hover:text-gray-500"
+            className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
           >
             <span className={`h-2 w-2 rounded-full ${f.color} opacity-40`} />
             {f.label}
           </button>
         )
+      )}
+
+      {/* Limpiar filtros */}
+      {hasActiveFilters && (
+        <button
+          onClick={onClearAll}
+          className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Limpiar
+        </button>
       )}
 
       {/* Periodo (informativo) */}

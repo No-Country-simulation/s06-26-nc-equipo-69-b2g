@@ -64,8 +64,6 @@ function generarAccion(cluster) {
   return 'Monitorear estacionalidad'
 }
 
-const riskInfo = 'Score calculado a partir de concentración, congestión, movilidad y conectividad.'
-
 function SkeletonRow() {
   return (
     <TableRow>
@@ -100,7 +98,7 @@ function SortIcon({ column, current }) {
 
 function RowDetail({ cluster }) {
   return (
-    <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="animate-slide-down grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
       {/* Score breakdown */}
       <div className="rounded-xl border border-[#E2E4DF] bg-[#F9FAF8] p-3">
         <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Score</h4>
@@ -368,9 +366,13 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
 
   return (
     <div className="overflow-hidden rounded-xl border border-[#E2E4DF] bg-white shadow-[0_1px_2px_rgba(20,30,35,0.07)]">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-[#F5F6F4]">
+      <div className="flex items-center justify-between px-4 py-2.5 text-xs text-gray-500">
+        <span>Mostrando {sorted.length} de {clusters.length} regiones</span>
+      </div>
+      <div className="max-h-[600px] overflow-y-auto">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-[#F5F6F4]">
+            <TableRow className="bg-[#F5F6F4]">
             <TableHead className="w-10 px-3 py-2.5">
               <Checkbox
                 checked={allSelected}
@@ -459,7 +461,7 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
             return (
               <Fragment key={c.cluster}>
                 <TableRow
-                  className={`${c.sin_cobertura ? 'bg-gray-50' : ''} ${isExpanded ? 'bg-[#F8F7FC]' : ''}`}
+                  className={`transition-colors hover:bg-gray-50 ${c.sin_cobertura ? 'bg-gray-50' : ''} ${isExpanded ? 'bg-[#F8F7FC]' : ''}`}
                 >
                   <TableCell className="px-3 py-2.5">
                     <Checkbox
@@ -489,8 +491,8 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
                   </TableCell>
                   <TableCell className="cursor-pointer px-3 py-2.5 text-xs tabular-nums transition-colors hover:text-[#564C8E]"
                     onClick={() => handleRowClick(c.cluster)}>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-1.5 w-10 rounded-full bg-gray-200">
+                    <div className="flex items-center gap-1.5 group/score">
+                      <div className="relative h-1.5 w-10 rounded-full bg-gray-200">
                         <div
                           className="h-1.5 rounded-full"
                           style={{
@@ -498,6 +500,12 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
                             backgroundColor: c.score_riesgo > 0.6 ? '#EF4444' : c.score_riesgo > 0.45 ? '#EAB308' : '#22C55E',
                           }}
                         />
+                        <div className="absolute bottom-full left-1/2 z-10 mb-1 w-40 -translate-x-1/2 rounded-md border bg-white px-2 py-1 text-[11px] text-gray-600 opacity-0 shadow-lg transition-opacity group-hover/score:opacity-100 pointer-events-none">
+                          <div className="font-medium mb-1">Score: {c.score_riesgo.toFixed(3)}</div>
+                          <div className="text-red-500">Alto: {'>'} 0.6</div>
+                          <div className="text-yellow-500">Medio: 0.45 – 0.6</div>
+                          <div className="text-green-500">Bajo: {'<'} 0.45</div>
+                        </div>
                       </div>
                       <span className="text-[11px] text-gray-500">{c.score_riesgo.toFixed(3)}</span>
                     </div>
@@ -534,8 +542,9 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
                       )}
                       <span className="group relative inline-flex cursor-help">
                         <Info className="h-3 w-3 text-gray-400" />
-                        <span className="absolute bottom-full left-1/2 z-10 mb-1 w-48 -translate-x-1/2 rounded-md border bg-white px-2 py-1 text-[11px] text-gray-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                          Score {c.score_riesgo.toFixed(3)}.<br />{riskInfo}
+                        <span className="invisible group-hover:visible absolute bottom-full left-1/2 z-50 mb-1 w-72 -translate-x-1/2 rounded-md border border-gray-200 bg-white px-2.5 py-2 text-[11px] text-gray-600 shadow-lg pointer-events-none">
+                          <div className="mb-1 font-medium text-gray-900">Score: {c.score_riesgo.toFixed(3)}</div>
+                          <div className="text-gray-500">Concentración, congestión, movilidad y conectividad</div>
                         </span>
                       </span>
                     </div>
@@ -573,6 +582,7 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
           })}
         </TableBody>
       </Table>
+      </div>
     </div>
   )
 }

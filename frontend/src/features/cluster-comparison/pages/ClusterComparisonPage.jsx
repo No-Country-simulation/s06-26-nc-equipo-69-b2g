@@ -92,6 +92,11 @@ export default function ClusterComparisonPage() {
     )
   }
 
+  const handleClearAll = () => {
+    setSearch('')
+    setActiveFilters(['ALTO', 'MEDIO'])
+  }
+
   const handleAskAI = async (clusters = null) => {
     const targetClusters = clusters || selected
     if (targetClusters.length === 0) return
@@ -148,6 +153,7 @@ export default function ClusterComparisonPage() {
             onToggleFilter={handleToggleFilter}
             search={search}
             onSearchChange={setSearch}
+            onClearAll={handleClearAll}
           />
           <ClusterTable
             selected={selected}
