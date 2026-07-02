@@ -51,6 +51,17 @@ paths:
                   respuesta_ia:
                     type: string
                     description: Respuesta del agente, fundamentada en datos y contexto.
+                  clusters_destacados:
+                    type: array
+                    description: >
+                      Clusters que la IA destaca en su análisis, validados contra
+                      riesgo_regiao. El frontend los usa para resaltar features en el
+                      mapa (Flujo B chat → mapa).
+                    items:
+                      type: string
+                    example:
+                      - SANTO_AMARO
+                      - ANTONIO_CARLOS
                   datos_extra:
                     type: object
                     properties:

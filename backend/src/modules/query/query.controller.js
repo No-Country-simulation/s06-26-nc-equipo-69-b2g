@@ -1,5 +1,6 @@
 import { callOpenRouter } from '../../ai/openrouter.service.js';
 import { embedText } from '../../ai/embeddings.service.js';
+import { parseAgentResponse } from '../../ai/responseParser.js';
 import { supabase } from '../../lib/supabase.js';
 
 export async function queryData(req, res, next) {
@@ -64,9 +65,22 @@ DATOS ESTRUCTURADOS DE LA REGIÓN:
     `.trim();
 
     const response = await callOpenRouter(userMessage);
+    const { respuesta, clustersDestacados } = parseAgentResponse(response.content);
+
+    // Flujo B (chat -> mapa): only clusters that exist in riesgo_regiao reach
+    // the frontend, so a hallucinated name never breaks the map highlight.
+    let validClusters = new Set((riesgo ?? []).map((r) => r.cluster));
+    if (region && clustersDestacados.length > 0) {
+      const { data: allClusters } = await supabase
+        .from('riesgo_regiao')
+        .select('cluster')
+        .limit(50);
+      if (allClusters?.length) validClusters = new Set(allClusters.map((r) => r.cluster));
+    }
 
     res.json({
-      respuesta_ia: response.content,
+      respuesta_ia: respuesta,
+      clusters_destacados: clustersDestacados.filter((c) => validClusters.has(c)),
       datos_extra: {
         regiones_riesgo: riesgo?.length ?? 0,
         antenas_encontradas: antenas?.length ?? 0,
