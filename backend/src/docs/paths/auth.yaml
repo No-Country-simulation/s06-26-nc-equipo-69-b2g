@@ -1,0 +1,80 @@
+paths:
+  /api/v1/auth/session:
+    post:
+      tags:
+        - Auth
+      summary: Valida la sesión de Supabase y devuelve el usuario
+      description: >
+        Token exchange: recibe el access token emitido por Supabase Auth (login con
+        Google en el frontend), lo valida contra Supabase y devuelve el perfil del
+        usuario junto con un token de sesión PROPIO del backend. Los requests
+        siguientes se autentican con ese token (header Authorization Bearer),
+        validado por el middleware requireAuth. El token de Supabase solo se usa en
+        este intercambio.
+      operationId: postAuthSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accessToken
+              properties:
+                accessToken:
+                  type: string
+                  description: Access token de la sesión de Supabase Auth.
+      responses:
+        '200':
+          description: Token válido — usuario de la aplicación.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  token:
+                    type: string
+                    description: >
+                      JWT de sesión emitido por el backend (expira según
+                      JWT_EXPIRES_IN, default 7d). Enviarlo como
+                      "Authorization: Bearer <token>" en requests protegidos.
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        example: ana@example.com
+                      firstName:
+                        type: string
+                        nullable: true
+                      lastName:
+                        type: string
+                        nullable: true
+                      avatarUrl:
+                        type: string
+                        nullable: true
+        '401':
+          description: Token ausente, inválido o expirado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        example: UNAUTHORIZED
+                      message:
+                        type: string
+                        example: Invalid or expired token
+                      statusCode:
+                        type: integer
+                        example: 401

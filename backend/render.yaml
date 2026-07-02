@@ -44,3 +44,9 @@ services:
       # ---- OpenRouter AI (set in Render dashboard) ----
       - key: OPENROUTER_API_KEY
         sync: false
+
+      # ---- Session tokens (set in Render dashboard: openssl rand -base64 48) ----
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
