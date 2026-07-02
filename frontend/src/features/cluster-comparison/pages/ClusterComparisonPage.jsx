@@ -38,9 +38,9 @@ export default function ClusterComparisonPage() {
     <main className="min-h-full bg-[#F2F3F1] px-4 py-8 sm:px-6 md:px-10 lg:px-12">
       <div className="mx-auto w-full max-w-7xl">
         <div className="mb-6">
-          <h1 className="mb-1 text-xl font-bold text-[#21262B]">Comparar clusters priorizados</h1>
+          <h1 className="mb-1 text-xl font-bold text-[#21262B]">Comparar regiones priorizadas</h1>
           <p className="text-sm text-[#5B6269]">
-            Clusters ordenados por riesgo territorial calculado · Dataset CDRView · jun/2026 · ventana de 15 días
+            Regiones ordenadas por riesgo territorial calculado · Dataset CDRView · jun/2026 · ventana de 15 días
           </p>
         </div>
         <section className="rounded-2xl border border-[#E2E4DF] bg-white p-4 shadow-[0_1px_2px_rgba(20,30,35,0.07)] sm:p-5">
@@ -62,8 +62,8 @@ export default function ClusterComparisonPage() {
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-900">
               {selected.length > 0
-                ? `${selected.length} ${selected.length === 1 ? 'cluster seleccionado' : 'clusters seleccionados'}`
-                : 'Ningún cluster seleccionado'}
+                ? `${selected.length} ${selected.length === 1 ? 'región seleccionada' : 'regiones seleccionadas'}`
+                : 'Ninguna región seleccionada'}
             </span>
             {selected.length > 0 && (
               <>

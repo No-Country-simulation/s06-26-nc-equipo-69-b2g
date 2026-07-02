@@ -69,7 +69,7 @@ const riskInfo = 'Score calculado a partir de concentración, congestión, movil
 
 // Columnas que se pueden ordenar
 const SORTABLE_COLUMNS = {
-  cluster: { label: 'Cluster', field: 'cluster', type: 'string' },
+  cluster: { label: 'Región', field: 'cluster', type: 'string' },
   usuarios: { label: 'Usuarios', field: 'n_usuarios_total', type: 'number' },
   score: { label: 'Score', field: 'score_riesgo', type: 'number' },
   red: { label: 'Red', field: 'pct_legacy_tech', type: 'number' },
@@ -310,7 +310,7 @@ export default function ClusterTable({ selected = [], onToggle, activeFilters = 
     return (
       <div className="flex items-center justify-center py-12">
         <Spinner className="h-6 w-6 text-[#564C8E]" />
-        <span className="ml-2 text-sm text-gray-500">Cargando clusters...</span>
+        <span className="ml-2 text-sm text-gray-500">Cargando regiones...</span>
       </div>
     )
   }
@@ -327,7 +327,7 @@ export default function ClusterTable({ selected = [], onToggle, activeFilters = 
     return (
       <div className="flex flex-col items-center justify-center py-12 text-gray-400">
         <SearchX className="mb-2 h-8 w-8" />
-        <p className="text-sm">No se encontraron clusters con los filtros actuales</p>
+        <p className="text-sm">No se encontraron regiones con los filtros actuales</p>
         <p className="mt-1 text-xs text-gray-300">Probá cambiar los filtros o el término de búsqueda</p>
       </div>
     )
@@ -344,7 +344,7 @@ export default function ClusterTable({ selected = [], onToggle, activeFilters = 
               onClick={() => handleSort('cluster')}
             >
               <span className="inline-flex items-center">
-                Cluster
+                Región
                 <SortIcon column="cluster" current={sort} />
               </span>
             </TableHead>
