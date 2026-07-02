@@ -79,3 +79,59 @@ describe('POST /api/v1/datos', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('POST /api/v1/datos — antenna and demographic context', () => {
+  it('filters tensor_concentracao by ecgi when provided', async () => {
+    const chains = {};
+    supabase.from = vi.fn((table) => {
+      chains[table] = mockChain({ data: [], error: null });
+      return chains[table];
+    });
+    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
+
+    const res = await request
+      .post('/api/v1/datos')
+      .send({ prompt: 'como esta esta antena', ecgi: '7240501005373318' });
+
+    expect(res.status).toBe(200);
+    expect(chains.tensor_concentracao.eq).toHaveBeenCalledWith('ecgi', '7240501005373318');
+  });
+
+  it('injects the demographic profile into the LLM context when region is set', async () => {
+    supabase.rpc = vi.fn().mockResolvedValue({
+      data: [
+        {
+          cluster: 'SANTO_AMARO',
+          n_assinantes: 3236,
+          income: { A: 100, B: 400, C: 1200, D: 1536 },
+          age_groups: { '18-24': 500 },
+          mobility: { BAIXA: 1000 },
+          pct_flagship: 0.12,
+        },
+      ],
+      error: null,
+    });
+    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
+
+    const res = await request
+      .post('/api/v1/datos')
+      .send({ prompt: 'que necesita esta zona', region: 'SANTO_AMARO' });
+
+    expect(res.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith('mapa_demografia', { p_cluster: 'SANTO_AMARO' });
+    const userMessage = callOpenRouter.mock.lastCall[0];
+    expect(userMessage).toContain('Perfil demográfico');
+    expect(userMessage).toContain('3236');
+  });
+
+  it('does not call the demografia RPC when region is absent', async () => {
+    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
+
+    const res = await request.post('/api/v1/datos').send({ prompt: 'panorama general' });
+
+    expect(res.status).toBe(200);
+    expect(supabase.rpc).not.toHaveBeenCalledWith('mapa_demografia', expect.anything());
+  });
+});

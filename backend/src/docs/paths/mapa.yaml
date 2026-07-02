@@ -233,3 +233,57 @@ paths:
                               type: string
                               enum: [MADRUGADA, MANHA, TARDE, NOITE]
                               example: NOITE
+
+  /api/v1/mapa/demografia:
+    get:
+      tags:
+        - Mapa
+      summary: Perfil demográfico agregado por cluster
+      description: >
+        Devuelve el perfil demográfico de los 27 clusters, agregado server-side desde
+        assinantes (nunca se exponen filas individuales). Un solo fetch: el frontend lo
+        cachea y resuelve el popup de cada cluster con properties.cluster como clave.
+      operationId: getMapaDemografia
+      responses:
+        '200':
+          description: Perfiles demográficos indexados por cluster.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metadata:
+                    type: object
+                    properties:
+                      total_assinantes:
+                        type: integer
+                        example: 200000
+                      n_clusters:
+                        type: integer
+                        example: 27
+                  clusters:
+                    type: object
+                    description: Mapa cluster → perfil demográfico.
+                    additionalProperties:
+                      type: object
+                      properties:
+                        n_assinantes:
+                          type: integer
+                          example: 3236
+                        income:
+                          type: object
+                          description: Distribución de renta (A=alta … D=baja).
+                          example: { A: 247, B: 880, C: 1425, D: 684 }
+                        age_groups:
+                          type: object
+                          description: Distribución por grupo etario.
+                          example:
+                            { '18-24': 642, '25-34': 646, '35-44': 672, '45-54': 671, '55+': 605 }
+                        mobility:
+                          type: object
+                          description: Patrón de movilidad de los residentes.
+                          example: { BAIXA: 1142, MODERADA: 1435, INTENSA: 659 }
+                        pct_flagship:
+                          type: number
+                          description: Proporción de dispositivos de gama alta (proxy socioeconómico).
+                          example: 0.1706

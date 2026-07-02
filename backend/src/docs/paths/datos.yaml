@@ -25,8 +25,18 @@ paths:
                   example: ¿Qué regiones tienen mayor riesgo de exclusión digital y por qué?
                 region:
                   type: string
-                  description: Cluster/zona a filtrar (opcional). Si se omite, considera todas.
+                  description: >
+                    Cluster/zona a filtrar (opcional). Si se omite, considera todas.
+                    Cuando está presente, el contexto de la IA incluye además el perfil
+                    demográfico agregado del cluster.
                   example: CBD_BEIRAMAR
+                ecgi:
+                  type: string
+                  description: >
+                    Antena a filtrar (opcional, click en antena del mapa). Más específico
+                    que region para los datos de red; tiene prioridad sobre region al
+                    filtrar tensor_concentracao.
+                  example: '7240501005373318'
                 indicator:
                   type: string
                   description: Indicador de interés (opcional).

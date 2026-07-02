@@ -124,3 +124,28 @@ describe('GET /api/v1/mapa/od', () => {
     expect(res.body.features[0].properties.n_viagens).toBe(28288);
   });
 });
+
+describe('GET /api/v1/mapa/demografia', () => {
+  it('returns profiles keyed by cluster from the aggregation RPC', async () => {
+    supabase.rpc = vi.fn().mockResolvedValue({
+      data: [
+        {
+          cluster: 'SANTO_AMARO',
+          n_assinantes: 3236,
+          income: { A: 100, B: 400, C: 1200, D: 1536 },
+          age_groups: { '18-24': 500 },
+          mobility: { BAIXA: 1000 },
+          pct_flagship: 0.12,
+        },
+      ],
+      error: null,
+    });
+
+    const res = await request.get('/api/v1/mapa/demografia');
+
+    expect(res.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith('mapa_demografia', { p_cluster: null });
+    expect(res.body.clusters.SANTO_AMARO.n_assinantes).toBe(3236);
+    expect(res.body.metadata.n_clusters).toBe(1);
+  });
+});
