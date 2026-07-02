@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { FileDown, Bot } from 'lucide-react'
+import { FileDown, Bot, Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import ClusterFilters from '../components/ClusterFilters'
 import ClusterTable from '../components/ClusterTable'
+import AIResponse from '../components/AIResponse'
 
 function formatClusterName(name) {
   return name
@@ -10,10 +11,23 @@ function formatClusterName(name) {
     .join(' · ')
 }
 
+function buildPrompt(clusterNames) {
+  const names = clusterNames.map(formatClusterName)
+  if (names.length === 1) {
+    return `Analizar la región ${names[0]} (identificador interno: ${clusterNames[0]}): ¿cuál es su nivel de riesgo de exclusión digital y qué factores lo impulsan? Responder con una tabla comparativa en markdown que muestre las métricas principales (Score, Usuarios, Infraestructura, Concentración, Vulnerabilidad, Congestión, Nivel de riesgo), seguido de un análisis breve y una sugerencia estratégica.`
+  }
+  return `Comparar EXACTAMENTE las siguientes ${names.length} regiones: ${names.map((n, i) => `${n} (${clusterNames[i]})`).join(', ')}. Es OBLIGATORIO incluir TODAS las regiones en la tabla comparativa en formato markdown (Score, Usuarios, Infraestructura, Concentración, Vulnerabilidad, Congestión, Nivel de riesgo). NO omitir ninguna región. Después de la tabla, incluir un análisis breve de diferencias clave y una sugerencia estratégica.`
+}
+
 export default function ClusterComparisonPage() {
   const [selected, setSelected] = useState([])
   const [activeFilters, setActiveFilters] = useState(['ALTO', 'MEDIO'])
   const [search, setSearch] = useState('')
+
+  const [aiResponse, setAiResponse] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState(null)
+  const [showResponse, setShowResponse] = useState(false)
 
   const handleToggle = (name) => {
     setSelected((prev) =>
@@ -25,6 +39,39 @@ export default function ClusterComparisonPage() {
     setActiveFilters((prev) =>
       prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
     )
+  }
+
+  const handleAskAI = async () => {
+    if (selected.length === 0) return
+
+    setAiLoading(true)
+    setAiError(null)
+    setShowResponse(true)
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://s06-26-nc-equipo-69-b2g-uxsh.onrender.com'
+      const prompt = buildPrompt(selected)
+
+      const res = await fetch(`${baseUrl}/api/v1/datos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          indicator: 'Conectividad',
+          language: 'es',
+        }),
+      })
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+
+      const data = await res.json()
+      setAiResponse(data)
+    } catch (err) {
+      console.error('AI request failed:', err)
+      setAiError(err.message)
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   const selectedNames = selected
@@ -77,13 +124,37 @@ export default function ClusterComparisonPage() {
               <FileDown className="h-3.5 w-3.5" />
               Exportar PDF
             </button>
-            <button className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
-              style={{ backgroundColor: '#564C8E' }}>
-              <Bot className="h-3.5 w-3.5" />
-              Preguntar a la IA
+            <button
+              onClick={handleAskAI}
+              disabled={selected.length === 0 || aiLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#564C8E' }}
+            >
+              {aiLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Bot className="h-3.5 w-3.5" />
+              )}
+              {aiLoading ? 'Consultando...' : 'Preguntar a la IA'}
             </button>
           </div>
         </div>
+
+        {showResponse && (
+          <div className="mt-3">
+            <AIResponse
+              response={aiResponse}
+              loading={aiLoading}
+              error={aiError}
+              selectedClusters={selected}
+              onClose={() => {
+                setShowResponse(false)
+                setAiResponse(null)
+                setAiError(null)
+              }}
+            />
+          </div>
+        )}
 
         <p className="mt-2 text-xs text-[#8A9197]">
           Calidad de red y congestión son estimaciones derivadas de la actividad de antenas (CDRView), no mediciones oficiales de campo.
