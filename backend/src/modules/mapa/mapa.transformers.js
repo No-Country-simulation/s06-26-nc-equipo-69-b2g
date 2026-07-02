@@ -42,3 +42,20 @@ export function odToGeoJson(rows) {
     })),
   };
 }
+
+// Not GeoJSON: demographic profiles are popup/context data, keyed by cluster
+// so the frontend resolves a map click without scanning an array.
+export function demografiaToResponse(rows) {
+  const clusters = {};
+  let totalAssinantes = 0;
+
+  for (const { cluster, ...profile } of rows) {
+    clusters[cluster] = profile;
+    totalAssinantes += profile.n_assinantes ?? 0;
+  }
+
+  return {
+    metadata: { total_assinantes: totalAssinantes, n_clusters: rows.length },
+    clusters,
+  };
+}

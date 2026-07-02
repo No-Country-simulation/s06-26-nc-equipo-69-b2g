@@ -2,6 +2,7 @@ import {
   clustersToGeoJson,
   concentracaoToGeoJson,
   odToGeoJson,
+  demografiaToResponse,
 } from '../modules/mapa/mapa.transformers.js';
 
 describe('clustersToGeoJson', () => {
@@ -124,6 +125,47 @@ describe('odToGeoJson', () => {
       n_viagens: 28288,
       dist_media_km: 3.74,
       periodo_predominante: 'NOITE',
+    });
+  });
+});
+
+describe('demografiaToResponse', () => {
+  const rows = [
+    {
+      cluster: 'SANTO_AMARO',
+      n_assinantes: 3236,
+      income: { A: 100, B: 400, C: 1200, D: 1536 },
+      age_groups: { '18-24': 500, '25-34': 900, '35-44': 800, '45-54': 600, '55+': 436 },
+      mobility: { BAIXA: 1000, MODERADA: 1500, INTENSA: 736 },
+      pct_flagship: 0.12,
+    },
+    {
+      cluster: 'CBD_BEIRAMAR',
+      n_assinantes: 10000,
+      income: { A: 4000, B: 3000, C: 2000, D: 1000 },
+      age_groups: { '18-24': 2000, '25-34': 3000, '35-44': 2500, '45-54': 1500, '55+': 1000 },
+      mobility: { BAIXA: 2000, MODERADA: 4000, INTENSA: 4000 },
+      pct_flagship: 0.55,
+    },
+  ];
+
+  it('keys profiles by cluster for O(1) lookup on map click', () => {
+    const result = demografiaToResponse(rows);
+    expect(result.clusters.SANTO_AMARO.n_assinantes).toBe(3236);
+    expect(result.clusters.SANTO_AMARO.income).toEqual({ A: 100, B: 400, C: 1200, D: 1536 });
+    expect(result.clusters.CBD_BEIRAMAR.pct_flagship).toBe(0.55);
+    expect(result.clusters.SANTO_AMARO.cluster).toBeUndefined();
+  });
+
+  it('computes metadata totals', () => {
+    const result = demografiaToResponse(rows);
+    expect(result.metadata).toEqual({ total_assinantes: 13236, n_clusters: 2 });
+  });
+
+  it('handles empty input', () => {
+    expect(demografiaToResponse([])).toEqual({
+      metadata: { total_assinantes: 0, n_clusters: 0 },
+      clusters: {},
     });
   });
 });

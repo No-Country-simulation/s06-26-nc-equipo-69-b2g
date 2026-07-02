@@ -1,5 +1,10 @@
 import { supabase } from '../../lib/supabase.js';
-import { clustersToGeoJson, concentracaoToGeoJson, odToGeoJson } from './mapa.transformers.js';
+import {
+  clustersToGeoJson,
+  concentracaoToGeoJson,
+  odToGeoJson,
+  demografiaToResponse,
+} from './mapa.transformers.js';
 
 const PERIODOS = ['MADRUGADA', 'MANHA', 'TARDE', 'NOITE'];
 
@@ -53,6 +58,19 @@ export async function getOd(_req, res, next) {
     if (error) throw error;
 
     res.json(odToGeoJson(data ?? []));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getDemografia(_req, res, next) {
+  try {
+    // Aggregated in Postgres (GROUP BY home_cluster) — assinantes rows are
+    // individual subscriber data and must never reach the frontend raw.
+    const { data, error } = await supabase.rpc('mapa_demografia', { p_cluster: null });
+    if (error) throw error;
+
+    res.json(demografiaToResponse(data ?? []));
   } catch (err) {
     next(err);
   }

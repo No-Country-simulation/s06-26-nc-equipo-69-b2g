@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase.js';
 
 export async function queryData(req, res, next) {
   try {
-    const { prompt, region, indicator, language } = req.body;
+    const { prompt, region, ecgi, indicator, language } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'prompt is required' });
@@ -21,9 +21,11 @@ export async function queryData(req, res, next) {
     let concQuery = supabase
       .from('tensor_concentracao')
       .select(
-        'cluster, periodo, n_usuarios, drop_pct_medio, congestionamento_medio, download_bytes, lat, lon'
+        'ecgi, cluster, periodo, n_usuarios, drop_pct_medio, congestionamento_medio, download_bytes, lat, lon'
       );
-    if (region) concQuery = concQuery.eq('cluster', region);
+    // ecgi (click en antena) es más específico que region (click en cluster).
+    if (ecgi) concQuery = concQuery.eq('ecgi', ecgi);
+    else if (region) concQuery = concQuery.eq('cluster', region);
     const { data: concentracao, error: concError } = await concQuery.limit(50);
     if (concError) throw concError;
 
@@ -31,6 +33,16 @@ export async function queryData(req, res, next) {
     if (region) antenasQuery = antenasQuery.eq('cluster', region);
     const { data: antenas, error: antenasError } = await antenasQuery.limit(50);
     if (antenasError) throw antenasError;
+
+    // 1b) Perfil demográfico del cluster (assinantes agregada server-side).
+    //     Solo con region: el agregado completo es innecesario para el prompt.
+    let demografia = null;
+    if (region) {
+      const { data: perfil, error: perfilError } = await supabase.rpc('mapa_demografia', {
+        p_cluster: region,
+      });
+      if (!perfilError && Array.isArray(perfil) && perfil.length > 0) demografia = perfil[0];
+    }
 
     // 2) RAG: recuperar conocimiento de dominio por similitud semántica.
     //    embedText devuelve null si no hay API key -> se degrada sin contexto.
@@ -52,6 +64,7 @@ export async function queryData(req, res, next) {
     const userMessage = `
 Consulta del usuario: "${prompt}"
 Región: ${region || 'Todas'}
+Antena (ecgi): ${ecgi || 'Todas'}
 Indicador: ${indicator || 'General'}
 Idioma de respuesta: ${language || 'es'}
 
@@ -61,7 +74,11 @@ ${contexto || '(sin contexto recuperado)'}
 DATOS ESTRUCTURADOS DE LA REGIÓN:
 - Riesgo por región (riesgo_regiao): ${JSON.stringify(riesgo)}
 - Concentración / calidad de red (tensor_concentracao): ${JSON.stringify(concentracao)}
-- Antenas / cobertura (antenas_flp): ${JSON.stringify(antenas)}
+- Antenas / cobertura (antenas_flp): ${JSON.stringify(antenas)}${
+      demografia
+        ? `\n- Perfil demográfico del cluster (assinantes agregado): ${JSON.stringify(demografia)}`
+        : ''
+    }
     `.trim();
 
     const response = await callOpenRouter(userMessage);
@@ -90,6 +107,7 @@ DATOS ESTRUCTURADOS DE LA REGIÓN:
         'riesgo_regiao',
         'tensor_concentracao',
         'antenas_flp',
+        ...(demografia ? ['assinantes_agregado'] : []),
         ...new Set(ragChunks.map((c) => c.fuente)),
       ],
     });
