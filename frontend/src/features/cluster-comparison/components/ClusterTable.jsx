@@ -10,7 +10,6 @@ import {
 } from '@/shared/components/ui/table'
 import { Badge } from '@/shared/components/ui/badge'
 import { Checkbox } from '@/shared/components/ui/checkbox'
-import { supabase } from '@/shared/lib/supabase'
 import { Spinner } from '@/shared/components/ui/spinner'
 
 function formatClusterName(name) {
@@ -227,13 +226,20 @@ export default function ClusterTable({ selected = [], onToggle, activeFilters = 
   useEffect(() => {
     async function fetchClusters() {
       try {
-        const { data, error } = await supabase
-          .from('riesgo_regiao')
-          .select('*')
-          .order('score_riesgo', { ascending: false })
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://s06-26-nc-equipo-69-b2g-uxsh.onrender.com'
+        const res = await fetch(`${baseUrl}/api/v1/mapa/clusters`)
 
-        if (error) throw error
-        setClusters(data || [])
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+
+        const geojson = await res.json()
+        const data = (geojson.features || []).map((f) => ({
+          ...f.properties,
+          lat: f.geometry?.coordinates?.[1] ?? null,
+          lon: f.geometry?.coordinates?.[0] ?? null,
+        }))
+
+        data.sort((a, b) => (b.score_riesgo ?? 0) - (a.score_riesgo ?? 0))
+        setClusters(data)
       } catch (err) {
         console.error('Error fetching clusters:', err)
         setError(err.message)
