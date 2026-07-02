@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, Fragment } from 'react'
-import { Info, WifiOff, SearchX, ChevronDown, ChevronUp, ChevronsUpDown, ChevronRight } from 'lucide-react'
+import { Info, WifiOff, SearchX, ChevronDown, ChevronUp, ChevronsUpDown, ChevronRight, Bot } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -10,7 +10,6 @@ import {
 } from '@/shared/components/ui/table'
 import { Badge } from '@/shared/components/ui/badge'
 import { Checkbox } from '@/shared/components/ui/checkbox'
-import { Spinner } from '@/shared/components/ui/spinner'
 
 function formatClusterName(name) {
   return name
@@ -66,6 +65,21 @@ function generarAccion(cluster) {
 }
 
 const riskInfo = 'Score calculado a partir de concentración, congestión, movilidad y conectividad.'
+
+function SkeletonRow() {
+  return (
+    <TableRow>
+      <TableCell className="px-3 py-2.5"><div className="h-4 w-4 animate-pulse rounded bg-gray-200" /></TableCell>
+      <TableCell className="px-3 py-2.5"><div className="h-3 w-32 animate-pulse rounded bg-gray-200" /></TableCell>
+      <TableCell className="px-3 py-2.5 text-right"><div className="ml-auto h-3 w-16 animate-pulse rounded bg-gray-200" /></TableCell>
+      <TableCell className="px-3 py-2.5"><div className="h-1.5 w-10 animate-pulse rounded bg-gray-200" /></TableCell>
+      <TableCell className="px-3 py-2.5"><div className="h-3 w-14 animate-pulse rounded bg-gray-200" /></TableCell>
+      <TableCell className="px-3 py-2.5"><div className="h-3 w-12 animate-pulse rounded bg-gray-200" /></TableCell>
+      <TableCell className="px-3 py-2.5"><div className="h-5 w-12 animate-pulse rounded-full bg-gray-200" /></TableCell>
+      <TableCell className="px-3 py-2.5"><div className="h-3 w-24 animate-pulse rounded bg-gray-200" /></TableCell>
+    </TableRow>
+  )
+}
 
 // Columnas que se pueden ordenar
 const SORTABLE_COLUMNS = {
@@ -216,7 +230,7 @@ function RowDetail({ cluster }) {
   )
 }
 
-export default function ClusterTable({ selected = [], onToggle, activeFilters = ['ALTO', 'MEDIO'], search = '' }) {
+export default function ClusterTable({ selected = [], onToggle, onToggleAll, activeFilters = ['ALTO', 'MEDIO'], search = '', onAskAI }) {
   const [clusters, setClusters] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -308,9 +322,26 @@ export default function ClusterTable({ selected = [], onToggle, activeFilters = 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="h-6 w-6 text-[#564C8E]" />
-        <span className="ml-2 text-sm text-gray-500">Cargando regiones...</span>
+      <div className="overflow-hidden rounded-xl border border-[#E2E4DF] bg-white shadow-[0_1px_2px_rgba(20,30,35,0.07)]">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-[#F5F6F4]">
+              <TableHead className="w-10 px-3 py-2.5"></TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Región</TableHead>
+              <TableHead className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Usuarios</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Score</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Red</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Congestión</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Riesgo</TableHead>
+              <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Acción</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonRow key={i} />
+            ))}
+          </TableBody>
+        </Table>
       </div>
     )
   }
@@ -333,12 +364,20 @@ export default function ClusterTable({ selected = [], onToggle, activeFilters = 
     )
   }
 
+  const allSelected = sorted.length > 0 && sorted.every((c) => selected.includes(c.cluster))
+
   return (
     <div className="overflow-hidden rounded-xl border border-[#E2E4DF] bg-white shadow-[0_1px_2px_rgba(20,30,35,0.07)]">
       <Table>
         <TableHeader>
           <TableRow className="bg-[#F5F6F4]">
-            <TableHead className="w-10 px-3 py-2.5"></TableHead>
+            <TableHead className="w-10 px-3 py-2.5">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={() => onToggleAll(sorted.map((c) => c.cluster))}
+                className="data-[state=checked]:border-[#564C8E] data-[state=checked]:bg-[#564C8E] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
+              />
+            </TableHead>
             <TableHead
               className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
               onClick={() => handleSort('cluster')}
@@ -501,13 +540,24 @@ export default function ClusterTable({ selected = [], onToggle, activeFilters = 
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
-                    onClick={() => handleRowClick(c.cluster)}>
-                    {c.sin_cobertura ? (
-                      <span className="font-medium text-red-500">Sin cobertura</span>
-                    ) : (
-                      <span className="text-gray-700">{generarAccion(c)}</span>
-                    )}
+                  <TableCell className="px-3 py-2.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      {c.sin_cobertura ? (
+                        <span className="font-medium text-red-500">Sin cobertura</span>
+                      ) : (
+                        <span className="text-gray-700">{generarAccion(c)}</span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onAskAI?.([c.cluster])
+                        }}
+                        className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-[#564C8E]/10 hover:text-[#564C8E]"
+                        title="Preguntar a la IA sobre esta región"
+                      >
+                        <Bot className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
 
