@@ -38,9 +38,9 @@ export default function SectionDatos() {
       style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-sm)' }}
     >
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="mb-4 flex items-start gap-3">
         <div
-          className="flex h-7 w-7 items-center justify-center rounded-md"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
           style={{ background: 'var(--brand-tint)', border: '1px solid var(--brand-tint-bd)' }}
         >
           <span style={{ fontFamily: 'var(--font-data)', fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>1</span>
@@ -56,7 +56,7 @@ export default function SectionDatos() {
       </div>
 
       {/* Source cards grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
         {sources.map(({ Icon, name, desc, link }) => (
           <div
             key={name}

@@ -1,8 +1,1 @@
 /* App-level styles - kept minimal, all layout handled by Tailwind */
-#root {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  text-align: left;
-  border-inline: none;
-}

@@ -35,9 +35,9 @@ export default function SectionIndicadores() {
       style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-sm)' }}
     >
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="mb-4 flex items-start gap-3">
         <div
-          className="flex h-7 w-7 items-center justify-center rounded-md"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
           style={{ background: 'var(--brand-tint)', border: '1px solid var(--brand-tint-bd)' }}
         >
           <span style={{ fontFamily: 'var(--font-data)', fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>2</span>
@@ -53,7 +53,7 @@ export default function SectionIndicadores() {
       </div>
 
       {/* Indicator cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
         {indicators.map(({ Icon, name, desc }) => (
           <div
             key={name}

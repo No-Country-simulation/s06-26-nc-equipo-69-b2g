@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import Button from "./components/Button";
-import Card from "./components/card";
+import Card from "./components/Card";
 import heroImage from "./assets/territorio-hero.jpg";
 
 function Icon({ name, size = 18 }) {

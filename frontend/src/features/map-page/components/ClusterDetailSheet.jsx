@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetTitle,
-} from '@/components/ui/sheet'
+} from '@/shared/components/ui/sheet'
 import MetricCard from '@/shared/components/MetricCard'
 import StatusBadge from '@/shared/components/StatusBadge'
 import useMapPageStore from '../store/useMapPageStore'

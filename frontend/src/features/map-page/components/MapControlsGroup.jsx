@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Database, Search, SlidersHorizontal } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import { filterConfig } from '../data/filterConfig'
 import useMapPageStore from '../store/useMapPageStore'
 import FilterPill from './FilterPill'
+import PeriodSwitch from './PeriodoSwitch'
 
-export default function MapControlsGroup({ className }) {
+export default function MapControlsGroup({ className, selectedPeriodo, onChangePeriodo }) {
   const [showFilters, setShowFilters] = useState(false)
   const activeFilters = useMapPageStore((s) => s.activeFilters)
   const toggleFilter = useMapPageStore((s) => s.toggleFilter)
@@ -55,6 +56,10 @@ export default function MapControlsGroup({ className }) {
             onToggle={toggleFilter}
           />
         ))}
+      </div>
+
+      <div className="pointer-events-auto mt-1">
+        <PeriodSwitch value={selectedPeriodo} onChange={onChangePeriodo} />
       </div>
     </div>
   )

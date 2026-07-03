@@ -5,9 +5,9 @@ export default function SectionRiesgo() {
       style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-sm)' }}
     >
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="mb-4 flex items-start gap-3">
         <div
-          className="flex h-7 w-7 items-center justify-center rounded-md"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
           style={{ background: 'var(--brand-tint)', border: '1px solid var(--brand-tint-bd)' }}
         >
           <span style={{ fontFamily: 'var(--font-data)', fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>3</span>
@@ -22,9 +22,9 @@ export default function SectionRiesgo() {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start">
+      <div className="flex flex-col items-start gap-4 lg:flex-row">
         {/* Risk bands */}
-        <div className="flex gap-3 flex-1 flex-wrap">
+        <div className="flex flex-1 flex-wrap gap-3">
           {/* Low */}
           <div
             className="flex-1 min-w-[100px] rounded-lg p-3"

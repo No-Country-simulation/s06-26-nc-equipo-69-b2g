@@ -1,4 +1,4 @@
-import { CheckCircle, AlertTriangle } from 'lucide-react'
+import { CheckCircle } from 'lucide-react'
 
 const traceFields = [
   'Datos usados',
@@ -19,16 +19,16 @@ const limits = [
 
 export default function SectionBottomRow() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
 
       {/* 4. How AI responds */}
       <div
-        className="rounded-xl border p-4 flex flex-col gap-3"
+        className="flex flex-col gap-3 rounded-xl border p-4"
         style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-sm)' }}
       >
         <div className="flex items-center gap-3">
           <div
-            className="flex h-7 w-7 items-center justify-center rounded-md"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
             style={{ background: 'var(--ai-bg)', border: '1px solid var(--ai-bd)' }}
           >
             <span style={{ fontFamily: 'var(--font-data)', fontSize: 11, color: 'var(--ai)', fontWeight: 600 }}>4</span>
@@ -61,12 +61,12 @@ export default function SectionBottomRow() {
 
       {/* 5. Traceability */}
       <div
-        className="rounded-xl border p-4 flex flex-col gap-3"
+        className="flex flex-col gap-3 rounded-xl border p-4"
         style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-sm)' }}
       >
         <div className="flex items-center gap-3">
           <div
-            className="flex h-7 w-7 items-center justify-center rounded-md"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
             style={{ background: 'var(--brand-tint)', border: '1px solid var(--brand-tint-bd)' }}
           >
             <span style={{ fontFamily: 'var(--font-data)', fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>5</span>
@@ -94,12 +94,12 @@ export default function SectionBottomRow() {
 
       {/* 6. MVP Limits */}
       <div
-        className="rounded-xl border p-4 flex flex-col gap-3"
+        className="flex flex-col gap-3 rounded-xl border p-4"
         style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-sm)' }}
       >
         <div className="flex items-center gap-3">
           <div
-            className="flex h-7 w-7 items-center justify-center rounded-md"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
             style={{ background: 'var(--risk-med-bg)', border: '1px solid var(--risk-med-bd)' }}
           >
             <span style={{ fontFamily: 'var(--font-data)', fontSize: 11, color: 'var(--risk-med-text)', fontWeight: 600 }}>6</span>

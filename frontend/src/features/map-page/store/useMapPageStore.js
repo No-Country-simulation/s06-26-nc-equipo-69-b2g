@@ -10,7 +10,7 @@ const useMapPageStore = create((set) => ({
   clearSelectedCluster: () => set({ selectedCluster: null }),
 
   // Left sidebar
-  isLeftSidebarOpen: true,
+  isLeftSidebarOpen: false,
   toggleLeftSidebar: () => set((state) => ({ isLeftSidebarOpen: !state.isLeftSidebarOpen })),
 
   // Active filters on the map
@@ -21,6 +21,10 @@ const useMapPageStore = create((set) => ({
         ? state.activeFilters.filter((f) => f !== filterId)
         : [...state.activeFilters, filterId],
     })),
+
+  // Selected period for concentracao API
+  selectedPeriodo: 'MANHA',
+  setSelectedPeriodo: (periodo) => set({ selectedPeriodo: periodo }),
 }))
 
 export default useMapPageStore

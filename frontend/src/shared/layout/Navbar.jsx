@@ -1,35 +1,15 @@
 import { BarChart3, BookOpen, Download, Map, Menu } from 'lucide-react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Link, useLocation } from 'react-router-dom'
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/shared/components/ui/sheet'
 
 const navLinks = [
-  { label: 'Mapa',        key: 'mapa',        icon: Map,      href: '/mapa' },
-  { label: 'Comparar',    key: 'comparar',    icon: BarChart3, href: '/comparar' },
-  { label: 'Metodología', key: 'metodologia', icon: BookOpen,  href: '/metodologia' },
+  { label: 'Mapa', icon: Map, path: '/mapa' },
+  { label: 'Comparar', icon: BarChart3, path: '/comparativa' },
+  { label: 'Metodología', icon: BookOpen, path: '/metodologia' },
 ]
 
-export default function Navbar({ activePage = 'mapa', onNavigate }) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  
-  const getActivePage = () => {
-    const path = location.pathname
-    if (path === '/mapa') return 'mapa'
-    if (path === '/comparar') return 'comparar'
-    if (path === '/metodologia') return 'metodologia'
-    return activePage
-  }
-  
-  const currentActivePage = getActivePage()
-  
-  const handleClick = (href, key) => {
-    if (onNavigate) {
-      onNavigate(key)
-    } else {
-      navigate(href)
-    }
-  }
-
+export default function Navbar() {
+  const { pathname } = useLocation()
   return (
     <nav
       className="flex h-14 shrink-0 items-center justify-between px-3 md:h-12 md:px-4"
@@ -38,7 +18,7 @@ export default function Navbar({ activePage = 'mapa', onNavigate }) {
       {/* Left: Logo + Nav */}
       <div className="flex min-w-0 items-center gap-3 md:gap-6">
         {/* Logo */}
-        <div className="flex min-w-0 items-center gap-2">
+        <Link to="/" className="flex min-w-0 items-center gap-2 rounded-md transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60" aria-label="Ir al inicio">
           <div
             className="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold text-white"
             style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
@@ -49,28 +29,24 @@ export default function Navbar({ activePage = 'mapa', onNavigate }) {
             style={{ fontFamily: "'Public Sans', sans-serif" }}>
             Panel de Datos Públicos
           </span>
-        </div>
+        </Link>
 
         {/* Nav Links – desktop */}
         <div className="hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => {
-            const isActive = currentActivePage === link.key
-            return (
-              <button
-                key={link.key}
-                onClick={() => handleClick(link.href, link.key)}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isActive
-                    ? 'text-white'
-                    : 'text-white/60 hover:bg-white/10 hover:text-white/80'
-                }`}
-                style={isActive ? { backgroundColor: 'rgba(255,255,255,0.15)' } : {}}
-              >
-                <link.icon className="h-3.5 w-3.5" />
-                {link.label}
-              </button>
-            )
-          })}
+          {navLinks.map((link) => (
+            <Link
+              key={link.label}
+              to={link.path}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                pathname === link.path
+                  ? 'bg-white/15 text-white'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white/80'
+              }`}
+            >
+              <link.icon className="h-3.5 w-3.5" />
+              {link.label}
+            </Link>
+          ))}
         </div>
       </div>
 
@@ -104,41 +80,39 @@ export default function Navbar({ activePage = 'mapa', onNavigate }) {
           className="w-[min(86vw,320px)] gap-0 border-l border-gray-200 bg-white p-0 text-gray-900 shadow-2xl md:hidden"
         >
           <div className="border-b border-gray-100 px-5 py-4 pr-14">
-            <div className="flex items-center gap-2">
-              <div
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold text-white"
-                style={{ backgroundColor: '#2C2750' }}
-              >
-                BiT
-              </div>
-              <SheetTitle className="text-sm font-semibold text-gray-900">
-                Panel de Datos Públicos
-              </SheetTitle>
-            </div>
+            <SheetTitle className="sr-only">Navegación</SheetTitle>
+            <SheetClose asChild>
+              <Link to="/" className="flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-50" aria-label="Ir al inicio">
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold text-white"
+                  style={{ backgroundColor: '#2C2750' }}
+                >
+                  BiT
+                </div>
+                <span className="text-sm font-semibold text-gray-900">
+                  Panel de Datos Públicos
+                </span>
+              </Link>
+            </SheetClose>
           </div>
 
           <div className="flex flex-1 flex-col px-3 py-4">
             <div className="space-y-1">
-              {navLinks.map((link) => {
-                const isActive = currentActivePage === link.key
-                return (
-                  <SheetClose key={link.key} asChild>
-                    <button
-                      type="button"
-                      onClick={() => handleClick(link.href, link.key)}
-                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'text-purple-900'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                      style={isActive ? { backgroundColor: 'color-mix(in srgb, #564C8E 8%, #FFFFFF)' } : {}}
-                    >
-                      <link.icon className="h-4 w-4" style={isActive ? { color: '#564C8E' } : {}} />
-                      {link.label}
-                    </button>
-                  </SheetClose>
-                )
-              })}
+              {navLinks.map((link) => (
+                <SheetClose key={link.label} asChild>
+                  <Link
+                    to={link.path}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-colors ${
+                      pathname === link.path
+                        ? 'bg-purple-50 text-purple-900'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <link.icon className="h-4 w-4" />
+                    {link.label}
+                  </Link>
+                </SheetClose>
+              ))}
             </div>
 
             <div className="mt-auto border-t border-gray-100 pt-4">
