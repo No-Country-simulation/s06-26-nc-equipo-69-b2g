@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Sparkles } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import {
   Sheet,
@@ -100,7 +99,12 @@ function useIsMobile() {
 }
 
 function ClusterDetailContent({ selectedCluster, scrollAreaRef }) {
-  const { indicators, movilidad } = selectedCluster
+  const {
+    name, code, municipio, riskLabel, riskVariant,
+    score_riesgo, concentracion, vulnerabilidad, n_usuarios_total,
+    pct_legacy_tech, pct_renda_baja, congestion_media, sin_cobertura, infra,
+    n_assinantes, incomeBreakdown, ageBreakdown,
+  } = selectedCluster
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-slate-950 text-white md:bg-white md:text-gray-900">
@@ -109,13 +113,13 @@ function ClusterDetailContent({ selectedCluster, scrollAreaRef }) {
           Detalle de cluster
         </p>
         <SheetTitle className="mt-1 text-xl font-bold text-white md:text-gray-900">
-          {selectedCluster.name}
+          {name}
         </SheetTitle>
         <SheetDescription className="mt-0.5 font-mono text-[10px] text-white/45 md:text-gray-400">
-          {selectedCluster.code} · {selectedCluster.type} · {selectedCluster.subtype}
+          {code}{municipio ? ` · ${municipio}` : ''}
         </SheetDescription>
         <div className="mt-2">
-          <StatusBadge label={selectedCluster.riskLabel} variant="red" dot={true} />
+          <StatusBadge label={riskLabel} variant={riskVariant ?? 'gray'} dot={true} />
         </div>
       </div>
 
@@ -126,110 +130,93 @@ function ClusterDetailContent({ selectedCluster, scrollAreaRef }) {
           </p>
           <div className="grid grid-cols-2 gap-2">
             <MetricCard
-              label={indicators.concentracion.label}
-              value={indicators.concentracion.value}
-              trend={indicators.concentracion.trend}
+              label="Score de riesgo"
+              value={score_riesgo?.toFixed?.(2) ?? score_riesgo ?? '—'}
             />
             <MetricCard
-              label={indicators.conectividad.label}
-              value={indicators.conectividad.value}
-              sublabel={indicators.conectividad.sublabel}
+              label="Concentración"
+              value={concentracion ?? '—'}
             />
             <MetricCard
-              label={indicators.congestion.label}
-              value={indicators.congestion.value}
-              sublabel={indicators.congestion.sublabel}
+              label="Vulnerabilidad"
+              value={vulnerabilidad?.toFixed?.(2) ?? vulnerabilidad ?? '—'}
             />
             <MetricCard
-              label={indicators.tecnologia.label}
-              value={indicators.tecnologia.value}
-              sublabel={indicators.tecnologia.sublabel}
+              label="Usuarios totales"
+              value={n_usuarios_total?.toLocaleString?.('es') ?? n_usuarios_total ?? '—'}
             />
           </div>
         </div>
 
         <div className="border-b border-white/10 px-5 py-4 md:border-gray-100">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/45 md:text-gray-400">
-            Movilidad y red
+            Red y cobertura
           </p>
           <div className="space-y-2">
             <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 md:border-gray-100 md:bg-white">
-              <span className="text-xs text-white/55 md:text-gray-500">Flujo OD saliente</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-white md:text-gray-900">{movilidad.flujoOD.value}</span>
-                <span className="text-[10px] text-white/45 md:text-gray-400">{movilidad.flujoOD.unit}</span>
-                <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/55 md:bg-gray-100 md:text-gray-500">
-                  {movilidad.flujoOD.source}
-                </span>
-              </div>
+              <span className="text-xs text-white/55 md:text-gray-500">Congestión media</span>
+              <span className="text-sm font-bold text-white md:text-gray-900">{(congestion_media * 100)?.toFixed?.(1) ?? '—'}%</span>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 md:border-gray-100 md:bg-white">
-              <span className="text-xs text-white/55 md:text-gray-500">Corredor asociado</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-white md:text-gray-900">{movilidad.corredor.value}</span>
-                <span className="rounded bg-orange-500/15 px-1.5 py-0.5 font-mono text-[9px] text-orange-300 md:bg-orange-100 md:text-orange-600">
-                  {movilidad.corredor.tag}
-                </span>
-              </div>
+              <span className="text-xs text-white/55 md:text-gray-500">% Tecnología legacy</span>
+              <span className="text-sm font-bold text-white md:text-gray-900">{(pct_legacy_tech * 100)?.toFixed?.(1) ?? '—'}%</span>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 md:border-gray-100 md:bg-white">
-              <span className="text-xs text-white/55 md:text-gray-500">Antenas / ERBs</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-white md:text-gray-900">{movilidad.antenas.value}</span>
-                <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/55 md:bg-gray-100 md:text-gray-500">
-                  {movilidad.antenas.source}
-                </span>
-              </div>
+              <span className="text-xs text-white/55 md:text-gray-500">% Renda baja</span>
+              <span className="text-sm font-bold text-white md:text-gray-900">{(pct_renda_baja * 100)?.toFixed?.(1) ?? '—'}%</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 md:border-gray-100 md:bg-white">
+              <span className="text-xs text-white/55 md:text-gray-500">Infraestructura</span>
+              <span className="text-sm font-bold text-white md:text-gray-900">{infra ?? '—'}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 md:border-gray-100 md:bg-white">
+              <span className="text-xs text-white/55 md:text-gray-500">Sin cobertura</span>
+              <span className="text-sm font-bold text-white md:text-gray-900">{sin_cobertura ? 'Sí' : 'No'}</span>
             </div>
           </div>
         </div>
 
-        <div className="border-b border-white/10 px-5 py-4 md:border-gray-100">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/45 md:text-gray-400">
-            Por qué importa
-          </p>
-          <p className="text-xs leading-relaxed text-white/65 md:text-gray-600">
-            {selectedCluster.porQueImporta}
-          </p>
-        </div>
-
-        <div className="px-5 py-4">
-          <div
-            className="rounded-xl border-2 border-purple-400/40 bg-purple-400/10 p-4 md:bg-[var(--bit-purple-muted)]"
-            style={{ borderColor: 'var(--bit-purple-light)' }}
-          >
-            <div className="mb-2 flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--bit-purple-light)' }} />
-              <p
-                className="text-[10px] font-bold uppercase tracking-widest"
-                style={{ color: 'var(--bit-purple-light)' }}
-              >
-                Recomendación · Generada por IA
-              </p>
-            </div>
-            <p className="text-xs leading-relaxed text-white/70 md:text-gray-700">
-              {selectedCluster.recomendacion}
+        {n_assinantes > 0 && (
+          <div className="border-b border-white/10 px-5 py-4 md:border-gray-100">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/45 md:text-gray-400">
+              Perfil demográfico
             </p>
-          </div>
-        </div>
-      </div>
+            <div className="mb-3 flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 md:border-gray-100 md:bg-white">
+              <span className="text-xs text-white/55 md:text-gray-500">Total assinantes</span>
+              <span className="text-sm font-bold text-white md:text-gray-900">{n_assinantes?.toLocaleString?.('es') ?? '—'}</span>
+            </div>
 
-      <div className="shrink-0 border-t border-white/10 bg-slate-950/95 p-4 md:border-gray-100 md:bg-white">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="flex-1 rounded-lg px-4 py-3 text-xs font-semibold text-white transition-colors hover:opacity-90 md:py-2.5"
-            style={{ backgroundColor: 'var(--bit-purple-deep)' }}
-          >
-            Preguntar sobre esta región
-          </button>
-          <button
-            type="button"
-            className="rounded-lg border border-white/10 bg-white/10 px-4 py-3 text-xs font-semibold text-white transition-colors hover:bg-white/15 md:border-gray-200 md:bg-white md:py-2.5 md:text-gray-700 md:hover:bg-gray-50"
-          >
-            Comparar
-          </button>
-        </div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/45 md:text-gray-400">
+              Distribución por ingreso
+            </p>
+            <div className="mb-3 space-y-1.5">
+              {incomeBreakdown?.map((item) => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <span className="w-14 text-[11px] text-white/65 md:text-gray-500">{item.label}</span>
+                  <div className="flex-1 h-2 rounded-full bg-white/10 md:bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-purple-500"
+                      style={{ width: `${item.pct}%` }}
+                    />
+                  </div>
+                  <span className="w-10 text-right text-[11px] font-mono text-white/55 md:text-gray-400">{item.pct}%</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/45 md:text-gray-400">
+              Distribución por edad
+            </p>
+            <div className="space-y-1.5">
+              {ageBreakdown?.map((item) => (
+                <div key={item.label} className="flex items-center justify-between rounded border border-white/10 bg-white/5 px-3 py-1.5 md:border-gray-100 md:bg-white">
+                  <span className="text-[11px] text-white/65 md:text-gray-500">{item.label}</span>
+                  <span className="text-[11px] font-bold text-white md:text-gray-900">{item.value?.toLocaleString?.('es') ?? '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

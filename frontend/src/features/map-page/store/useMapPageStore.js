@@ -9,9 +9,15 @@ const useMapPageStore = create((set) => ({
   openMockClusterDetail: () => set({ selectedCluster: mockCluster }),
   clearSelectedCluster: () => set({ selectedCluster: null }),
 
-  // Left sidebar
+  // Left sidebar (chat)
   isLeftSidebarOpen: false,
   toggleLeftSidebar: () => set((state) => ({ isLeftSidebarOpen: !state.isLeftSidebarOpen })),
+  openLeftSidebar: () => set({ isLeftSidebarOpen: true }),
+
+  // Chat context from map clicks (region or ecgi)
+  chatContext: null,
+  setChatContext: (context) => set({ chatContext: context }),
+  clearChatContext: () => set({ chatContext: null }),
 
   // Active filters on the map
   activeFilters: ['concentracion', 'antenas', 'clusters', 'calidad', 'flujos', 'corredores', 'riesgo'],
@@ -25,6 +31,14 @@ const useMapPageStore = create((set) => ({
   // Selected period for concentracao API
   selectedPeriodo: 'MANHA',
   setSelectedPeriodo: (periodo) => set({ selectedPeriodo: periodo }),
+
+  // Cached demografia data (keyed by cluster name)
+  demografiaData: null,
+  setDemografiaData: (data) => set({ demografiaData: data }),
+
+  // Cached cluster properties from /api/v1/mapa/clusters (keyed by cluster name)
+  clusterProperties: null,
+  setClusterProperties: (data) => set({ clusterProperties: data }),
 }))
 
 export default useMapPageStore

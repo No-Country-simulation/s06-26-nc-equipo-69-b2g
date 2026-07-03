@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { GripHorizontal, Send, Sparkles, X } from 'lucide-react'
+import { GripHorizontal, Send, Sparkles, X, MapPin } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle } from '@/shared/components/ui/sheet'
 import { getDemoAiResponse } from '../data/demoAiResponses'
+import useMapPageStore from '@/features/map-page/store/useMapPageStore'
 
 const quickActions = [
   '¿Qué puedo preguntarte?',
@@ -166,6 +167,8 @@ export function MobileAiChatSheet({ open, onOpenChange, onOpenRecommendedCluster
 }
 
 function AiChatContent({ dragHandleProps, onClose, onOpenRecommendedCluster }) {
+  const chatContext = useMapPageStore((s) => s.chatContext)
+  const clearChatContext = useMapPageStore((s) => s.clearChatContext)
   const [messages, setMessages] = useState(initialMessages)
   const [inputValue, setInputValue] = useState('')
   const [isTyping, setIsTyping] = useState(false)
@@ -257,6 +260,20 @@ function AiChatContent({ dragHandleProps, onClose, onOpenRecommendedCluster }) {
             </p>
           </div>
         </div>
+        {chatContext?.region ? (
+          <div className="flex items-center gap-1.5 rounded-full bg-purple-50 px-2.5 py-1 text-[10px] font-medium text-purple-700">
+            <MapPin className="h-3 w-3" />
+            <span>{chatContext.region.replace(/_/g, ' ')}</span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); clearChatContext(); }}
+              className="ml-1 text-purple-400 hover:text-purple-700"
+              aria-label="Quitar contexto de región"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={onClose}

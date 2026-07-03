@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { addAllSourcesAndLayers, updateLayerVisibility } from '../lib/mapLayers'
+import { addAllSourcesAndLayers, addClusterClickHandler, ensureCorredoresLoaded, updateLayerVisibility } from '../lib/mapLayers'
 import useMapPageStore from '../store/useMapPageStore'
 
 const token = import.meta.env.VITE_API_KEY_MAPBOX
@@ -9,6 +9,11 @@ export default function MapboxMap({ selectedPeriodo }) {
   const mapContainer = useRef(null)
   const mapRef = useRef(null)
   const activeFilters = useMapPageStore((s) => s.activeFilters)
+  const demografiaData = useMapPageStore((s) => s.demografiaData)
+  const clusterProperties = useMapPageStore((s) => s.clusterProperties)
+  const setDemografiaData = useMapPageStore((s) => s.setDemografiaData)
+  const setClusterProperties = useMapPageStore((s) => s.setClusterProperties)
+  const getStoreState = useMapPageStore.getState
   const [tokenError, setTokenError] = useState(useMapbox && !token)
   const [mapError, setMapError] = useState(null)
   const [loaded, setLoaded] = useState(false)
@@ -81,6 +86,34 @@ export default function MapboxMap({ selectedPeriodo }) {
           setLoaded(true)
           requestMapResize()
           await addAllSourcesAndLayers(map, activeFilters, selectedPeriodo)
+          addClusterClickHandler(map, getStoreState)
+
+          const apiUrl = import.meta.env.VITE_API_URL || ''
+
+          if (!demografiaData) {
+            try {
+              const demoRes = await fetch(`${apiUrl}/api/v1/mapa/demografia`)
+              const demoJson = await demoRes.json()
+              setDemografiaData(demoJson)
+            } catch {
+              // demografia not available
+            }
+          }
+
+          if (!clusterProperties) {
+            try {
+              const clustersRes = await fetch(`${apiUrl}/api/v1/mapa/clusters`)
+              const clustersJson = await clustersRes.json()
+              const propsMap = {}
+              clustersJson.features.forEach((f) => {
+                const name = f.properties?.cluster
+                if (name) propsMap[name] = f.properties
+              })
+              setClusterProperties(propsMap)
+            } catch {
+              // clusters properties not available
+            }
+          }
         })
 
         map.on('style.load', () => {
@@ -125,6 +158,7 @@ export default function MapboxMap({ selectedPeriodo }) {
   useEffect(() => {
     if (!mapRef.current || !loaded) return
     updateVisibility(mapRef.current)
+    ensureCorredoresLoaded(mapRef.current, activeFilters)
   }, [activeFilters, loaded])
 
   useEffect(() => {
@@ -135,12 +169,7 @@ export default function MapboxMap({ selectedPeriodo }) {
       .then((r) => r.json())
       .then((geojson) => {
         if (map.getSource('concentracion-heatmap')) {
-          const features = geojson.features.map((f) => ({
-            type: 'Feature',
-            geometry: f.geometry,
-            properties: { ...f.properties, weight: (f.properties.n_usuarios ?? 0) / 100000 },
-          }))
-          map.getSource('concentracion-heatmap').setData({ type: 'FeatureCollection', features })
+          map.getSource('concentracion-heatmap').setData(geojson)
         }
       })
       .catch(() => {})
