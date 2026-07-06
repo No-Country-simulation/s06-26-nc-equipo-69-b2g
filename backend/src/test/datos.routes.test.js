@@ -75,6 +75,52 @@ describe('POST /api/v1/datos', () => {
     expect(res.body.respuesta_ia).toBe('Respuesta sin marcador.');
   });
 
+  it('returns a structured fallback with highlighted zones when the model provider fails', async () => {
+    supabase.from = vi.fn((table) => {
+      if (table === 'riesgo_regiao') {
+        return mockChain({
+          data: [
+            { cluster: 'ZONA_BAJA', score_riesgo: 0.2, lat: -27.62, lon: -48.56 },
+            { cluster: 'ZONA_ALTA', score_riesgo: 0.95, lat: -27.6, lon: -48.55 },
+            { cluster: 'ZONA_MEDIA', score_riesgo: 0.5, lat: -27.61, lon: -48.54 },
+          ],
+          error: null,
+        });
+      }
+      if (table === 'tensor_concentracao') {
+        return mockChain({ data: [{ cluster: 'ZONA_ALTA', congestionamento_medio: 0.82 }], error: null });
+      }
+      if (table === 'equipamentos_publicos') {
+        return mockChain({
+          data: [
+            {
+              nome: 'Centro de Saúde Zona Alta',
+              tipo: 'clinic',
+              categoria: 'salud',
+              lat: -27.6005,
+              lon: -48.5505,
+            },
+          ],
+          error: null,
+        });
+      }
+      return mockChain({ data: [], error: null });
+    });
+    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    callOpenRouter.mockRejectedValue(new Error('provider 500'));
+
+    const res = await request.post('/api/v1/datos').send({ prompt: 'priorizar politica' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.respuesta_ia).toContain('Primero conviene revisar conectividad');
+    expect(res.body.respuesta_ia).toContain('Zonas a priorizar');
+    expect(res.body.respuesta_ia).toContain('servicios públicos e instituciones cercanas');
+    expect(res.body.respuesta_ia).not.toContain('cluster');
+    expect(res.body.clusters_destacados).toEqual(['ZONA_ALTA', 'ZONA_MEDIA', 'ZONA_BAJA']);
+    expect(res.body.datos_extra.equipamentos_publicos).toBeGreaterThan(0);
+    expect(res.body.fuentes).toContain('equipamentos_publicos');
+  });
+
   it('still validates that prompt is required', async () => {
     const res = await request.post('/api/v1/datos').send({});
     expect(res.status).toBe(400);
