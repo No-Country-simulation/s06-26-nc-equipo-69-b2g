@@ -8,7 +8,7 @@ import { getSelectedModel } from './modelStore'
  *
  * Response: { respuesta_ia, clusters_destacados, datos_extra, fuentes }
  */
-export function askTerritorio(prompt, context = {}) {
+export function askTerritorio(prompt, context = {}, history = []) {
   const regions = [...new Set([...(context.regions ?? []), context.region].filter(Boolean))]
   const model = getSelectedModel()
 
@@ -18,6 +18,8 @@ export function askTerritorio(prompt, context = {}) {
     ...(regions.length > 0 ? { regions } : {}),
     ...(context.ecgi ? { ecgi: context.ecgi } : {}),
     ...(model ? { model } : {}),
+    // Last visible turns so the AI keeps the thread of this session.
+    ...(history.length > 0 ? { history } : {}),
     language: 'es',
   })
 }

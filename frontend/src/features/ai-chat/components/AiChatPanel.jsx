@@ -223,8 +223,15 @@ function AiChatContent({ dragHandleProps, onClose }) {
         setHighlightedClusters(requestedClusters)
       }
 
+      // Send the recent visible turns so the AI keeps the conversation thread
+      // (the welcome message and error bubbles add nothing).
+      const history = messages
+        .filter((m) => !m.isError && m.id !== 'welcome')
+        .slice(-6)
+        .map((m) => ({ role: m.role, content: m.content }))
+
       try {
-        const res = await askTerritorio(trimmedMessage, buildBackendChatContext(chatContext))
+        const res = await askTerritorio(trimmedMessage, buildBackendChatContext(chatContext), history)
         const highlightedClusters = res.clusters_destacados?.length
           ? res.clusters_destacados
           : requestedClusters
@@ -258,7 +265,7 @@ function AiChatContent({ dragHandleProps, onClose }) {
         setIsTyping(false)
       }
     },
-    [inputValue, isTyping, chatContext, clusterProperties, setHighlightedClusters],
+    [inputValue, isTyping, messages, chatContext, clusterProperties, setHighlightedClusters],
   )
 
   const handleInputKeyDown = (event) => {
