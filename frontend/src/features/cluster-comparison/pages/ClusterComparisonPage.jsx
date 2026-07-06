@@ -34,7 +34,6 @@ export default function ClusterComparisonPage() {
 
   useEffect(() => {
     if (!aiLoading) {
-      setLoadingMessage('')
       if (loadingTimerRef.current) {
         clearInterval(loadingTimerRef.current)
         loadingTimerRef.current = null
@@ -55,7 +54,6 @@ export default function ClusterComparisonPage() {
     ]
 
     let idx = 0
-    setLoadingMessage(messages[0])
 
     loadingTimerRef.current = setInterval(() => {
       idx = (idx + 1) % messages.length
@@ -104,6 +102,7 @@ export default function ClusterComparisonPage() {
     setAiLoading(true)
     setAiError(null)
     setShowResponse(true)
+    setLoadingMessage(`Analizando ${targetClusters.length} ${targetClusters.length === 1 ? 'región' : 'regiones'} seleccionadas...`)
 
     try {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://s06-26-nc-equipo-69-b2g-uxsh.onrender.com'
