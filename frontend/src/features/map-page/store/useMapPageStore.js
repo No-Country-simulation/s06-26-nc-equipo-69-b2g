@@ -129,7 +129,7 @@ const useMapPageStore = create((set, get) => ({
   },
 
   // Active filters on the map. Only risk bubbles and the heatmap start
-  // visible; antenas and corredores are opt-in toggles to avoid clutter.
+  // visible; antenas, instituciones and corredores are opt-in toggles to avoid clutter.
   activeFilters: ['concentracion', 'clusters'],
   toggleFilter: (filterId) =>
     set((state) => ({

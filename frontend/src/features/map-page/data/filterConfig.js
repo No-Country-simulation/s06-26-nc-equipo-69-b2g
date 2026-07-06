@@ -3,4 +3,5 @@ export const filterConfig = [
   { id: 'antenas', label: 'Antenas / ERBs', color: 'bg-gray-800' },
   { id: 'clusters', label: 'Zonas de riesgo', color: 'bg-yellow-500' },
   { id: 'corredores', label: 'Corredores / gargalos', color: 'bg-cyan-500' },
+  { id: 'instituciones', label: 'Instituciones', color: 'bg-blue-500' },
 ]

@@ -40,3 +40,9 @@ export function getDemografia() {
 export function getOD() {
   return cachedGet('od', `${MAPA_BASE}/od`)
 }
+
+export function getEquipamentosPublicos(categoria) {
+  const params = categoria ? { categoria } : undefined
+  const key = categoria ? `equipamentos:${categoria}` : 'equipamentos'
+  return cachedGet(key, `${MAPA_BASE}/equipamentos`, params)
+}

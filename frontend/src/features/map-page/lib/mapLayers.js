@@ -1,4 +1,4 @@
-import { getConcentracao, getClusters, getOD } from '../api/mapaService'
+import { getConcentracao, getClusters, getEquipamentosPublicos, getOD } from '../api/mapaService'
 import { buildClusterDetail } from './clusterDetail'
 
 export const filterLayerMap = {
@@ -6,6 +6,7 @@ export const filterLayerMap = {
   antenas: ['antenas-layer'],
   clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura', 'clusters-labels', 'clusters-ia-highlight'],
   corredores: ['corredores-layer'],
+  instituciones: ['instituciones-layer', 'instituciones-labels'],
 }
 
 export function updateLayerVisibility(map, activeFilters) {
@@ -166,6 +167,168 @@ function corredorTooltipHtml(props) {
       </div>
     </div>
   `
+}
+
+const INSTITUCION_CATEGORY_LABELS = {
+  salud: 'Salud',
+  educacion: 'Educación',
+  asistencia: 'Asistencia',
+  gobierno: 'Gobierno',
+}
+
+const INSTITUCION_ICON_IDS = {
+  salud: 'institucion-salud-icon',
+  educacion: 'institucion-educacion-icon',
+  asistencia: 'institucion-asistencia-icon',
+  gobierno: 'institucion-gobierno-icon',
+  default: 'institucion-default-icon',
+}
+
+function buildInstitutionIconSvg({ color, body }) {
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">
+  <circle cx="28" cy="28" r="23" fill="#ffffff" opacity="0.96"/>
+  <circle cx="28" cy="28" r="19" fill="${color}" stroke="#ffffff" stroke-width="3"/>
+  <g fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    ${body}
+  </g>
+</svg>`
+}
+
+const INSTITUCION_ICON_SVGS = {
+  [INSTITUCION_ICON_IDS.salud]: buildInstitutionIconSvg({
+    color: '#ef4444',
+    body: '<path d="M28 17v22"/><path d="M17 28h22"/>',
+  }),
+  [INSTITUCION_ICON_IDS.educacion]: buildInstitutionIconSvg({
+    color: '#2563eb',
+    body: '<path d="M16 20h9c2 0 3 1 3 3v16c0-2-1-3-3-3h-9z"/><path d="M40 20h-9c-2 0-3 1-3 3v16c0-2 1-3 3-3h9z"/>',
+  }),
+  [INSTITUCION_ICON_IDS.asistencia]: buildInstitutionIconSvg({
+    color: '#16a34a',
+    body: '<path d="M18 32c4 5 10 8 10 8s6-3 10-8"/><path d="M19 25c0-4 5-6 9-1 4-5 9-3 9 1 0 6-9 11-9 11s-9-5-9-11z"/>',
+  }),
+  [INSTITUCION_ICON_IDS.gobierno]: buildInstitutionIconSvg({
+    color: '#7c3aed',
+    body: '<path d="M17 25h22"/><path d="M19 39h18"/><path d="M21 25v14"/><path d="M28 25v14"/><path d="M35 25v14"/><path d="M16 22l12-7 12 7z"/>',
+  }),
+  [INSTITUCION_ICON_IDS.default]: buildInstitutionIconSvg({
+    color: '#64748b',
+    body: '<path d="M28 18v20"/><path d="M20 26h16"/><path d="M20 38h16"/>',
+  }),
+}
+
+function loadSvgIcon(map, iconId, svg) {
+  if (map.hasImage(iconId)) return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const img = new Image(56, 56)
+    img.onload = () => {
+      if (!map.hasImage(iconId)) {
+        map.addImage(iconId, img, { pixelRatio: 2 })
+      }
+      resolve()
+    }
+    img.onerror = reject
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+  })
+}
+
+function loadInstitucionIcons(map) {
+  return Promise.all(
+    Object.entries(INSTITUCION_ICON_SVGS).map(([iconId, svg]) => loadSvgIcon(map, iconId, svg))
+  )
+}
+
+function escapeHtml(value = '') {
+  return value
+    .toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function institucionTooltipHtml(props) {
+  const categoria = props.categoria ?? ''
+  const categoryLabel = INSTITUCION_CATEGORY_LABELS[categoria] ?? categoria ?? 'Institución'
+  return `
+    <div style="font-family: inherit; font-size: 11px; line-height: 1.5; min-width: 170px;">
+      <p style="margin:0 0 2px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#2563eb;">Institución pública</p>
+      <strong style="display:block; font-size: 12px; color:#111827;">${escapeHtml(props.nome ?? 'Sin nombre')}</strong>
+      <div style="margin-top: 4px; display: grid; grid-template-columns: auto auto; gap: 0 12px;">
+        <span style="color:#6b7280">Categoría</span><span style="text-align:right; font-weight:600">${escapeHtml(categoryLabel)}</span>
+        <span style="color:#6b7280">Tipo</span><span style="text-align:right; font-weight:600">${escapeHtml(props.tipo ?? '—')}</span>
+      </div>
+    </div>
+  `
+}
+
+export async function addInstitucionesSourceAndLayer(map) {
+  await loadInstitucionIcons(map)
+
+  const geojson = await getEquipamentosPublicos()
+
+  geojson.features.forEach((feature) => {
+    const categoria = feature.properties?.categoria
+    feature.properties.categoria_label = INSTITUCION_CATEGORY_LABELS[categoria] ?? categoria ?? 'Institución'
+  })
+
+  map.addSource('instituciones', {
+    type: 'geojson',
+    data: geojson,
+  })
+
+  map.addLayer({
+    id: 'instituciones-layer',
+    type: 'symbol',
+    source: 'instituciones',
+    layout: {
+      'icon-image': [
+        'match',
+        ['get', 'categoria'],
+        'salud', INSTITUCION_ICON_IDS.salud,
+        'educacion', INSTITUCION_ICON_IDS.educacion,
+        'asistencia', INSTITUCION_ICON_IDS.asistencia,
+        'gobierno', INSTITUCION_ICON_IDS.gobierno,
+        INSTITUCION_ICON_IDS.default,
+      ],
+      'icon-size': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        9, 0.55,
+        13, 0.78,
+        15, 1,
+      ],
+      'icon-allow-overlap': false,
+      'icon-ignore-placement': false,
+      'icon-padding': 4,
+    },
+  })
+
+  map.addLayer({
+    id: 'instituciones-labels',
+    type: 'symbol',
+    source: 'instituciones',
+    minzoom: 13.75,
+    layout: {
+      'text-field': ['get', 'categoria_label'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 13.75, 9, 16, 11],
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-offset': [0, 1.35],
+      'text-anchor': 'top',
+      'text-allow-overlap': false,
+      'text-optional': true,
+      'text-padding': 4,
+    },
+    paint: {
+      'text-color': '#1f2937',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.2,
+    },
+  })
 }
 
 function buildArcCoordinates(start, end) {
@@ -370,6 +533,11 @@ export async function addAllSourcesAndLayers(map, activeFilters = [], periodo = 
   await addConcentracionSourceAndLayer(map, periodo)
   await addAntenasLayer(map)
   await addClustersSourceAndLayer(map)
+  try {
+    await addInstitucionesSourceAndLayer(map)
+  } catch (err) {
+    console.warn('Could not load public institutions layer:', err)
+  }
   updateLayerVisibility(map, activeFilters)
 }
 
@@ -385,7 +553,7 @@ export function updateIaHighlight(map, clusterNames = []) {
   map.setFilter('clusters-ia-highlight', ['in', ['get', 'cluster'], ['literal', clusterNames]])
 }
 
-const INTERACTIVE_LAYERS = ['clusters-layer', 'antenas-layer', 'corredores-layer']
+const INTERACTIVE_LAYERS = ['clusters-layer', 'antenas-layer', 'instituciones-layer', 'corredores-layer']
 
 // Touch-friendly hit area: fingers are ~10px less precise than a cursor
 const TAP_TOLERANCE_PX = 10
@@ -453,6 +621,15 @@ export function addMapInteractions(map, mapboxgl, getStoreState) {
       return
     }
 
+    if (feature.layer.id === 'instituciones-layer') {
+      tooltip.remove()
+      infoPopup
+        .setLngLat(feature.geometry.coordinates)
+        .setHTML(institucionTooltipHtml(feature.properties))
+        .addTo(map)
+      return
+    }
+
     if (feature.layer.id === 'corredores-layer') {
       tooltip.remove()
       infoPopup
@@ -473,6 +650,20 @@ export function addMapInteractions(map, mapboxgl, getStoreState) {
       .addTo(map)
   })
   map.on('mouseleave', 'antenas-layer', () => {
+    map.getCanvas().style.cursor = ''
+    tooltip.remove()
+  })
+
+  map.on('mousemove', 'instituciones-layer', (e) => {
+    const feature = e.features?.[0]
+    if (!feature) return
+    map.getCanvas().style.cursor = 'pointer'
+    tooltip
+      .setLngLat(feature.geometry.coordinates)
+      .setHTML(institucionTooltipHtml(feature.properties))
+      .addTo(map)
+  })
+  map.on('mouseleave', 'instituciones-layer', () => {
     map.getCanvas().style.cursor = ''
     tooltip.remove()
   })

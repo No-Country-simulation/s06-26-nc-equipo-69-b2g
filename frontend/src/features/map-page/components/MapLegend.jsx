@@ -2,6 +2,18 @@ import { useState } from 'react'
 import { ChevronDown, List } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
+function InstitutionLegendIcon({ color, children }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 56 56" aria-hidden="true" className="shrink-0 drop-shadow-sm">
+      <circle cx="28" cy="28" r="23" fill="#ffffff" opacity="0.96" />
+      <circle cx="28" cy="28" r="19" fill={color} stroke="#ffffff" strokeWidth="3" />
+      <g fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </g>
+    </svg>
+  )
+}
+
 export default function MapLegend({ className }) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -81,6 +93,43 @@ export default function MapLegend({ className }) {
             style={{ borderTop: '2px dashed #00bcd4' }}
           />
           Corredor / gargalo
+        </div>
+        <div className="space-y-1 text-[10px] text-gray-600">
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">Instituciones públicas</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <span className="flex items-center gap-1">
+              <InstitutionLegendIcon color="#ef4444">
+                <path d="M28 17v22" />
+                <path d="M17 28h22" />
+              </InstitutionLegendIcon>
+              Salud
+            </span>
+            <span className="flex items-center gap-1">
+              <InstitutionLegendIcon color="#2563eb">
+                <path d="M16 20h9c2 0 3 1 3 3v16c0-2-1-3-3-3h-9z" />
+                <path d="M40 20h-9c-2 0-3 1-3 3v16c0-2 1-3 3-3h9z" />
+              </InstitutionLegendIcon>
+              Educación
+            </span>
+            <span className="flex items-center gap-1">
+              <InstitutionLegendIcon color="#16a34a">
+                <path d="M18 32c4 5 10 8 10 8s6-3 10-8" />
+                <path d="M19 25c0-4 5-6 9-1 4-5 9-3 9 1 0 6-9 11-9 11s-9-5-9-11z" />
+              </InstitutionLegendIcon>
+              Asistencia
+            </span>
+            <span className="flex items-center gap-1">
+              <InstitutionLegendIcon color="#7c3aed">
+                <path d="M17 25h22" />
+                <path d="M19 39h18" />
+                <path d="M21 25v14" />
+                <path d="M28 25v14" />
+                <path d="M35 25v14" />
+                <path d="M16 22l12-7 12 7z" />
+              </InstitutionLegendIcon>
+              Gobierno
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-gray-600">
           <span className="flex h-3 w-3 items-center justify-center rounded-full border-2 border-blue-500 text-[6px] text-blue-500">
