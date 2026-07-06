@@ -75,6 +75,9 @@ importers:
       '@fontsource-variable/geist':
         specifier: ^5.2.9
         version: 5.2.9
+      '@supabase/supabase-js':
+        specifier: ^2.108.1
+        version: 2.108.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
