@@ -4,18 +4,22 @@ import { buildClusterDetail } from './clusterDetail'
 export const filterLayerMap = {
   concentracion: ['concentracion-heatmap-layer'],
   antenas: ['antenas-layer'],
-  clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura', 'clusters-labels', 'clusters-card-highlight', 'clusters-ia-highlight'],
+  clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura', 'clusters-labels', 'clusters-card-highlight', 'clusters-ia-highlight', 'clusters-columns'],
   corredores: ['corredores-layer'],
   instituciones: ['instituciones-layer', 'instituciones-labels'],
 }
 
+// Layers that only make sense on the tilted 3D basemap (extrusions read as
+// flat stains at pitch 0). Their visibility needs the filter AND dusk mode.
+const DUSK_ONLY_LAYERS = new Set(['clusters-columns'])
+
 export function updateLayerVisibility(map, activeFilters) {
   Object.entries(filterLayerMap).forEach(([filterId, layerIds]) => {
-    const visibility = activeFilters.includes(filterId) ? 'visible' : 'none'
+    const filterActive = activeFilters.includes(filterId)
     layerIds.forEach((layerId) => {
-      if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, 'visibility', visibility)
-      }
+      if (!map.getLayer(layerId)) return
+      const visible = filterActive && (!DUSK_ONLY_LAYERS.has(layerId) || map.__bitTheme === 'dusk')
+      map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none')
     })
   })
 }
@@ -406,6 +410,19 @@ export async function addCorredoresSourceAndLayer(map) {
   })
 }
 
+// Approximate circular polygon around a point, in meters. fill-extrusion
+// needs polygons; cluster centroids are points.
+function circlePolygon(lng, lat, radiusMeters, steps = 32) {
+  const dLat = radiusMeters / 111320
+  const dLng = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180))
+  const coords = []
+  for (let i = 0; i <= steps; i += 1) {
+    const angle = (i / steps) * 2 * Math.PI
+    coords.push([lng + Math.cos(angle) * dLng, lat + Math.sin(angle) * dLat])
+  }
+  return { type: 'Polygon', coordinates: [coords] }
+}
+
 // Bubble radius driven by score_riesgo, scaled down at low zoom so the
 // metro-wide view doesn't collapse into overlapping blobs downtown
 const CLUSTER_RADIUS = [
@@ -427,6 +444,46 @@ export async function addClustersSourceAndLayer(map) {
   map.addSource('clusters', {
     type: 'geojson',
     data: geojson,
+  })
+
+  // 3D risk columns (dusk mode only): height and footprint scale with
+  // score_riesgo, so the tilted view reads as a skyline of exclusion risk.
+  const columnFeatures = geojson.features
+    .map((f) => {
+      const [lng, lat] = f.geometry?.coordinates ?? []
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
+      const score = Number(f.properties?.score_riesgo) || 0
+      return {
+        type: 'Feature',
+        properties: f.properties,
+        geometry: circlePolygon(lng, lat, 300 + score * 450),
+      }
+    })
+    .filter(Boolean)
+
+  map.addSource('clusters-columns', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: columnFeatures },
+  })
+
+  map.addLayer({
+    id: 'clusters-columns',
+    type: 'fill-extrusion',
+    source: 'clusters-columns',
+    layout: { visibility: 'none' },
+    paint: {
+      'fill-extrusion-height': ['+', 250, ['*', ['coalesce', ['get', 'score_riesgo'], 0], 3000]],
+      'fill-extrusion-base': 0,
+      'fill-extrusion-color': [
+        'match',
+        ['get', 'nivel_riesgo'],
+        'ALTO', '#f87171',
+        'MEDIO', '#fbbf24',
+        'BAJO', '#34d399',
+        '#94a3b8',
+      ],
+      'fill-extrusion-opacity': 0.65,
+    },
   })
 
   map.addLayer({
@@ -552,16 +609,16 @@ export async function addClustersSourceAndLayer(map) {
 // lazily-added layers (corredores).
 const DUSK_LAYER_PAINT = {
   'corredores-layer': {
-    'line-color': '#67e8f9',
-    'line-opacity': 0.85,
-    'line-width': ['interpolate', ['linear'], ['get', 'n_viagens'], 0, 1.2, 28288, 4],
+    'line-color': '#a5f3fc',
+    'line-opacity': 0.95,
+    'line-width': ['interpolate', ['linear'], ['get', 'n_viagens'], 0, 1.4, 28288, 4.5],
   },
   'clusters-layer': {
-    'circle-opacity': 0.55,
+    'circle-opacity': 0.6,
     'circle-color': [
       'match',
       ['get', 'nivel_riesgo'],
-      'ALTO', '#ef4444',
+      'ALTO', '#f87171',
       'MEDIO', '#fbbf24',
       'BAJO', '#34d399',
       '#cbd5e1',
@@ -569,10 +626,10 @@ const DUSK_LAYER_PAINT = {
     'circle-stroke-color': [
       'match',
       ['get', 'nivel_riesgo'],
-      'ALTO', '#fca5a5',
-      'MEDIO', '#fde047',
-      'BAJO', '#6ee7b7',
-      '#e5e7eb',
+      'ALTO', '#fecaca',
+      'MEDIO', '#fef08a',
+      'BAJO', '#a7f3d0',
+      '#f1f5f9',
     ],
     'circle-stroke-width': 2.5,
   },
@@ -580,12 +637,12 @@ const DUSK_LAYER_PAINT = {
     'circle-stroke-color': [
       'match',
       ['get', 'nivel_riesgo'],
-      'ALTO', '#f87171',
+      'ALTO', '#fca5a5',
       'MEDIO', '#fde047',
       'BAJO', '#6ee7b7',
-      '#e5e7eb',
+      '#f1f5f9',
     ],
-    'circle-opacity': 0.9,
+    'circle-opacity': 1,
   },
   'clusters-labels': {
     'text-color': '#f9fafb',
@@ -595,12 +652,58 @@ const DUSK_LAYER_PAINT = {
 }
 
 export function applyDataLayerTheme(map, theme) {
+  // updateLayerVisibility reads this flag to gate dusk-only layers.
+  map.__bitTheme = theme
   if (theme !== 'dusk') return
   for (const [layerId, props] of Object.entries(DUSK_LAYER_PAINT)) {
     if (!map.getLayer(layerId)) continue
     for (const [prop, value] of Object.entries(props)) {
       map.setPaintProperty(layerId, prop, value)
     }
+  }
+}
+
+// --- Animated corridors: the dash pattern advances so origin->destination
+// flows read as movement. Sequence adapted from the Mapbox GL "animate a
+// line" pattern for a [4, 3] dash.
+const DASH_SEQUENCE = [
+  [0, 4, 3],
+  [0.5, 4, 2.5],
+  [1, 4, 2],
+  [1.5, 4, 1.5],
+  [2, 4, 1],
+  [2.5, 4, 0.5],
+  [3, 4, 0],
+  [0, 0.5, 3, 3.5],
+  [0, 1, 3, 3],
+  [0, 1.5, 3, 2.5],
+  [0, 2, 3, 2],
+  [0, 2.5, 3, 1.5],
+  [0, 3, 3, 1],
+  [0, 3.5, 3, 0.5],
+]
+
+export function startCorredoresAnimation(map) {
+  if (map.__corredoresAnimationFrame) return
+
+  let step = 0
+  const animate = (timestamp) => {
+    const nextStep = Math.floor((timestamp / 70) % DASH_SEQUENCE.length)
+    if (nextStep !== step) {
+      step = nextStep
+      if (map.getLayer('corredores-layer')) {
+        map.setPaintProperty('corredores-layer', 'line-dasharray', DASH_SEQUENCE[step])
+      }
+    }
+    map.__corredoresAnimationFrame = window.requestAnimationFrame(animate)
+  }
+  map.__corredoresAnimationFrame = window.requestAnimationFrame(animate)
+}
+
+export function stopCorredoresAnimation(map) {
+  if (map.__corredoresAnimationFrame) {
+    window.cancelAnimationFrame(map.__corredoresAnimationFrame)
+    map.__corredoresAnimationFrame = null
   }
 }
 

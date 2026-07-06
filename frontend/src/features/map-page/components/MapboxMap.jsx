@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getClusters, getConcentracao, getDemografia } from '../api/mapaService'
-import { addAllSourcesAndLayers, addMapInteractions, applyDataLayerTheme, ensureCorredoresLoaded, updateCardHighlight, updateIaHighlight, updateLayerVisibility } from '../lib/mapLayers'
+import { addAllSourcesAndLayers, addMapInteractions, applyDataLayerTheme, ensureCorredoresLoaded, startCorredoresAnimation, stopCorredoresAnimation, updateCardHighlight, updateIaHighlight, updateLayerVisibility } from '../lib/mapLayers'
 import useMapPageStore from '../store/useMapPageStore'
 
 const token = import.meta.env.VITE_API_KEY_MAPBOX
@@ -130,6 +130,9 @@ export default function MapboxMap({ selectedPeriodo }) {
           }
 
           addMapInteractions(map, mapboxgl, getStoreState)
+          // Mobility corridors flow (marching dashes); survives style
+          // switches because it re-checks the layer each frame.
+          startCorredoresAnimation(map)
 
           if (!demografiaData) {
             try {
@@ -191,6 +194,7 @@ export default function MapboxMap({ selectedPeriodo }) {
         window.removeEventListener('resize', requestMapResize)
       }
       if (map) {
+        stopCorredoresAnimation(map)
         getStoreState().setMapInstance(null)
         map.remove()
       }
@@ -269,6 +273,54 @@ export default function MapboxMap({ selectedPeriodo }) {
       .filter((code) => !highlightedClusters.includes(code))
     updateCardHighlight(mapRef.current, cardOnly)
   }, [highlightedClusters, openZones, loaded])
+
+  // Cinematic camera: when the AI highlights zones, fly to them (tilted in
+  // 3D). Keyed on the highlight set so unrelated re-renders don't move the
+  // camera, and an empty set never hijacks it.
+  const prevHighlightsRef = useRef('')
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !loaded) return
+    const key = highlightedClusters.join(',')
+    if (key === prevHighlightsRef.current) return
+    prevHighlightsRef.current = key
+    if (highlightedClusters.length === 0 || !clusterProperties) return
+
+    const points = highlightedClusters
+      .map((name) => clusterProperties[name])
+      .filter((p) => p && Number.isFinite(p.lng) && Number.isFinite(p.lat))
+    if (points.length === 0) return
+
+    const is3d = appliedStyleModeRef.current === 'dusk3d'
+    if (points.length === 1) {
+      map.flyTo({
+        center: [points[0].lng, points[0].lat],
+        zoom: Math.max(map.getZoom(), 11.5),
+        pitch: is3d ? 58 : 0,
+        bearing: is3d ? map.getBearing() + 30 : 0,
+        duration: 2400,
+        essential: true,
+      })
+      return
+    }
+
+    const lngs = points.map((p) => p.lng)
+    const lats = points.map((p) => p.lat)
+    map.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      {
+        padding: 120,
+        maxZoom: 12.5,
+        pitch: is3d ? 50 : 0,
+        bearing: is3d ? map.getBearing() : 0,
+        duration: 2400,
+        essential: true,
+      },
+    )
+  }, [highlightedClusters, clusterProperties, loaded])
 
   useEffect(() => {
     if (!mapRef.current || !loaded) return
