@@ -15,15 +15,31 @@ vi.mock('../modules/models/models.service.js', () => ({
   getPreferredModel: vi.fn().mockResolvedValue(null),
   setPreferredModel: vi.fn().mockResolvedValue(true),
 }));
+vi.mock('../modules/conversations/conversations.service.js', () => ({
+  getOwnedConversation: vi.fn().mockResolvedValue(null),
+  createConversation: vi.fn().mockResolvedValue({ id: 'conv-new' }),
+  touchConversation: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { app } from '../app.js';
 import { supabase } from '../lib/supabase.js';
 import { callOpenRouter } from '../ai/openrouter.service.js';
 import { recallRelevant, saveTurn } from '../modules/memory/memory.service.js';
 import { getPreferredModel } from '../modules/models/models.service.js';
+import {
+  getOwnedConversation,
+  createConversation,
+} from '../modules/conversations/conversations.service.js';
 import { generateToken } from '../modules/auth/jwt.service.js';
 
 const request = supertest(app);
+const USER = { id: '11111111-1111-1111-1111-111111111111', email: 'gestor@b2g.gov' };
+const TOKEN = generateToken(USER);
+
+// The chat endpoint requires auth; every functional test sends the token.
+function postDatos(body) {
+  return request.post('/api/v1/datos').set('Authorization', `Bearer ${TOKEN}`).send(body);
+}
 
 function mockChain(result) {
   return {
@@ -34,6 +50,16 @@ function mockChain(result) {
     limit: vi.fn().mockResolvedValue(result),
   };
 }
+
+beforeEach(() => {
+  supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+  callOpenRouter.mockReset().mockResolvedValue({ role: 'assistant', content: 'ok' });
+  recallRelevant.mockReset().mockResolvedValue([]);
+  saveTurn.mockReset().mockResolvedValue(undefined);
+  getPreferredModel.mockReset().mockResolvedValue(null);
+  getOwnedConversation.mockReset().mockResolvedValue(null);
+  createConversation.mockReset().mockResolvedValue({ id: 'conv-new' });
+});
 
 describe('POST /api/v1/datos', () => {
   beforeEach(() => {
@@ -48,13 +74,20 @@ describe('POST /api/v1/datos', () => {
     });
   });
 
+  it('rejects anonymous requests with 401 (protects provider credits)', async () => {
+    const res = await request.post('/api/v1/datos').send({ prompt: 'zonas sin cobertura' });
+
+    expect(res.status).toBe(401);
+    expect(callOpenRouter).not.toHaveBeenCalled();
+  });
+
   it('returns clusters_destacados parsed from the agent response and strips the marker', async () => {
     callOpenRouter.mockResolvedValue({
       role: 'assistant',
       content: 'Zonas críticas identificadas.\n\nCLUSTERS_DESTACADOS: ["SANTO_AMARO"]',
     });
 
-    const res = await request.post('/api/v1/datos').send({ prompt: 'zonas sin cobertura' });
+    const res = await postDatos({ prompt: 'zonas sin cobertura' });
 
     expect(res.status).toBe(200);
     expect(res.body.respuesta_ia).toBe('Zonas críticas identificadas.');
@@ -67,7 +100,7 @@ describe('POST /api/v1/datos', () => {
       content: 'Análisis.\nCLUSTERS_DESTACADOS: ["SANTO_AMARO", "CLUSTER_INVENTADO"]',
     });
 
-    const res = await request.post('/api/v1/datos').send({ prompt: 'riesgo alto' });
+    const res = await postDatos({ prompt: 'riesgo alto' });
 
     expect(res.status).toBe(200);
     expect(res.body.clusters_destacados).toEqual(['SANTO_AMARO']);
@@ -79,7 +112,7 @@ describe('POST /api/v1/datos', () => {
       content: 'Respuesta sin marcador.',
     });
 
-    const res = await request.post('/api/v1/datos').send({ prompt: 'hola' });
+    const res = await postDatos({ prompt: 'panorama de riesgo' });
 
     expect(res.status).toBe(200);
     expect(res.body.clusters_destacados).toEqual([]);
@@ -87,10 +120,9 @@ describe('POST /api/v1/datos', () => {
   });
 
   it('surfaces the provider error instead of a silent fallback when the model fails', async () => {
-    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
     callOpenRouter.mockRejectedValue(new Error('provider 500'));
 
-    const res = await request.post('/api/v1/datos').send({ prompt: 'priorizar politica' });
+    const res = await postDatos({ prompt: 'priorizar politica' });
 
     expect(res.status).toBe(503);
     expect(res.body.error.code).toBe('SERVICE_UNAVAILABLE');
@@ -98,7 +130,7 @@ describe('POST /api/v1/datos', () => {
   });
 
   it('still validates that prompt is required', async () => {
-    const res = await request.post('/api/v1/datos').send({});
+    const res = await postDatos({});
     expect(res.status).toBe(400);
   });
 });
@@ -110,12 +142,8 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
       chains[table] = mockChain({ data: [], error: null });
       return chains[table];
     });
-    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
-    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
 
-    const res = await request
-      .post('/api/v1/datos')
-      .send({ prompt: 'como esta esta antena', ecgi: '7240501005373318' });
+    const res = await postDatos({ prompt: 'como esta esta antena', ecgi: '7240501005373318' });
 
     expect(res.status).toBe(200);
     expect(chains.tensor_concentracao.eq).toHaveBeenCalledWith('ecgi', '7240501005373318');
@@ -133,12 +161,11 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
       });
       return chains[table];
     });
-    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
-    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
 
-    const res = await request
-      .post('/api/v1/datos')
-      .send({ prompt: 'comparar zonas', regions: ['SANTO_AMARO', 'CBD_BEIRAMAR'] });
+    const res = await postDatos({
+      prompt: 'comparar zonas',
+      regions: ['SANTO_AMARO', 'CBD_BEIRAMAR'],
+    });
 
     expect(res.status).toBe(200);
     expect(chains.riesgo_regiao.in).toHaveBeenCalledWith('cluster', [
@@ -157,6 +184,7 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
   });
 
   it('injects the demographic profile into the LLM context when region is set', async () => {
+    supabase.from = vi.fn(() => mockChain({ data: [], error: null }));
     supabase.rpc = vi.fn().mockResolvedValue({
       data: [
         {
@@ -170,11 +198,8 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
       ],
       error: null,
     });
-    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
 
-    const res = await request
-      .post('/api/v1/datos')
-      .send({ prompt: 'que necesita esta zona', region: 'SANTO_AMARO' });
+    const res = await postDatos({ prompt: 'que necesita esta zona', region: 'SANTO_AMARO' });
 
     expect(res.status).toBe(200);
     expect(supabase.rpc).toHaveBeenCalledWith('mapa_demografia', { p_cluster: 'SANTO_AMARO' });
@@ -207,12 +232,8 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
       }
       return mockChain({ data: [], error: null });
     });
-    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
-    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
 
-    const res = await request
-      .post('/api/v1/datos')
-      .send({ prompt: 'que politica priorizar', region: 'SANTO_AMARO' });
+    const res = await postDatos({ prompt: 'que politica priorizar', region: 'SANTO_AMARO' });
 
     expect(res.status).toBe(200);
     const userMessage = callOpenRouter.mock.lastCall[0];
@@ -235,12 +256,8 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
       }
       return mockChain({ data: [], error: null });
     });
-    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
-    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
 
-    const res = await request
-      .post('/api/v1/datos')
-      .send({ prompt: 'panorama', region: 'SANTO_AMARO' });
+    const res = await postDatos({ prompt: 'panorama', region: 'SANTO_AMARO' });
 
     expect(res.status).toBe(200);
     expect(res.body.datos_extra.equipamentos_publicos).toBe(0);
@@ -248,61 +265,63 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
   });
 
   it('does not call the demografia RPC when region is absent', async () => {
-    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
-    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
+    supabase.from = vi.fn(() => mockChain({ data: [], error: null }));
 
-    const res = await request.post('/api/v1/datos').send({ prompt: 'panorama general' });
+    const res = await postDatos({ prompt: 'panorama general' });
 
     expect(res.status).toBe(200);
     expect(supabase.rpc).not.toHaveBeenCalledWith('mapa_demografia', expect.anything());
   });
 });
 
-describe('POST /api/v1/datos — per-user model and memory', () => {
-  const USER = { id: '11111111-1111-1111-1111-111111111111', email: 'gestor@b2g.gov' };
-  const token = generateToken(USER);
-
+describe('POST /api/v1/datos — model, memory and conversations', () => {
   beforeEach(() => {
     supabase.from = vi.fn(() => mockChain({ data: [], error: null }));
-    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
-    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
-    recallRelevant.mockReset().mockResolvedValue([]);
-    saveTurn.mockReset().mockResolvedValue(undefined);
-    getPreferredModel.mockReset().mockResolvedValue(null);
   });
 
   it('uses the whitelisted model sent in the body', async () => {
-    const res = await request
-      .post('/api/v1/datos')
-      .send({ prompt: 'riesgo por zona', model: 'openai/gpt-4o-mini' });
+    const res = await postDatos({ prompt: 'riesgo por zona', model: 'openai/gpt-4o-mini' });
 
     expect(res.status).toBe(200);
     expect(callOpenRouter.mock.lastCall[1]).toBe('openai/gpt-4o-mini');
   });
 
-  it('ignores a body model outside the whitelist', async () => {
-    const res = await request
-      .post('/api/v1/datos')
-      .send({ prompt: 'riesgo por zona', model: 'evil/not-allowed' });
-
-    expect(res.status).toBe(200);
-    expect(callOpenRouter.mock.lastCall[1]).toBeUndefined();
-  });
-
-  it('falls back to the persisted preference for an authenticated user', async () => {
+  it('ignores a body model outside the whitelist and uses the stored preference', async () => {
     getPreferredModel.mockResolvedValue('meta-llama/llama-3.3-70b-instruct');
 
-    const res = await request
-      .post('/api/v1/datos')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ prompt: 'riesgo por zona' });
+    const res = await postDatos({ prompt: 'riesgo por zona', model: 'evil/not-allowed' });
 
     expect(res.status).toBe(200);
     expect(getPreferredModel).toHaveBeenCalledWith(USER.id);
     expect(callOpenRouter.mock.lastCall[1]).toBe('meta-llama/llama-3.3-70b-instruct');
   });
 
-  it('injects the user history section and persists both turns when authenticated', async () => {
+  it('creates a conversation on the first message and returns its id', async () => {
+    const res = await postDatos({ prompt: 'riesgo por zona' });
+
+    expect(res.status).toBe(200);
+    expect(createConversation).toHaveBeenCalledWith(USER.id, 'riesgo por zona');
+    expect(res.body.conversation_id).toBe('conv-new');
+    expect(saveTurn).toHaveBeenCalledWith(
+      USER.id,
+      'user',
+      'riesgo por zona',
+      expect.any(Object),
+      expect.objectContaining({ conversationId: 'conv-new' })
+    );
+  });
+
+  it('reuses an owned conversation sent in the body', async () => {
+    getOwnedConversation.mockResolvedValue({ id: 'conv-mine', title: 'Riesgo' });
+
+    const res = await postDatos({ prompt: 'seguimos con esa zona', conversationId: 'conv-mine' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.conversation_id).toBe('conv-mine');
+    expect(createConversation).not.toHaveBeenCalled();
+  });
+
+  it('injects the user history section and persists both turns', async () => {
     recallRelevant.mockResolvedValue([
       { id: 1, role: 'user', content: 'me interesa Santo Amaro', created_at: '2026-07-01' },
     ]);
@@ -311,10 +330,7 @@ describe('POST /api/v1/datos — per-user model and memory', () => {
       content: 'Análisis.\nCLUSTERS_DESTACADOS: ["SANTO_AMARO"]',
     });
 
-    const res = await request
-      .post('/api/v1/datos')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ prompt: 'como sigue esa zona', regions: ['SANTO_AMARO'] });
+    const res = await postDatos({ prompt: 'como sigue esa zona', regions: ['SANTO_AMARO'] });
 
     expect(res.status).toBe(200);
     expect(recallRelevant).toHaveBeenCalledWith(USER.id, 'como sigue esa zona');
@@ -325,13 +341,15 @@ describe('POST /api/v1/datos — per-user model and memory', () => {
       USER.id,
       'user',
       'como sigue esa zona',
-      expect.objectContaining({ regions: ['SANTO_AMARO'] })
+      expect.objectContaining({ regions: ['SANTO_AMARO'] }),
+      expect.objectContaining({ conversationId: 'conv-new' })
     );
     expect(saveTurn).toHaveBeenCalledWith(
       USER.id,
       'assistant',
       'Análisis.',
-      expect.objectContaining({ clusters_destacados: ['SANTO_AMARO'] })
+      expect.objectContaining({ clusters_destacados: ['SANTO_AMARO'] }),
+      expect.objectContaining({ conversationId: 'conv-new' })
     );
   });
 
@@ -342,7 +360,7 @@ describe('POST /api/v1/datos — per-user model and memory', () => {
       content: '¡Hola Ale! Todo bien por acá. ¿Querés mirar alguna zona?\nCLUSTERS_DESTACADOS: []',
     });
 
-    const res = await request.post('/api/v1/datos').send({
+    const res = await postDatos({
       prompt: 'hola, todo bien?',
       history: [{ role: 'user', content: 'hola, soy Ale' }],
     });
@@ -351,13 +369,26 @@ describe('POST /api/v1/datos — per-user model and memory', () => {
     expect(supabase.from).not.toHaveBeenCalled();
     expect(res.body.fuentes).toEqual([]);
     expect(res.body.clusters_destacados).toEqual([]);
-    expect(res.body.respuesta_ia).toContain('Todo bien');
+    expect(res.body.conversation_id).toBe('conv-new');
     expect(callOpenRouter.mock.lastCall[0]).toContain('CONVERSACIÓN ACTUAL');
     expect(callOpenRouter.mock.lastCall[0]).toContain('soy Ale');
   });
 
+  it('persists small talk in the transcript but without embedding', async () => {
+    const res = await postDatos({ prompt: 'hola!' });
+
+    expect(res.status).toBe(200);
+    expect(saveTurn).toHaveBeenCalledWith(
+      USER.id,
+      'user',
+      'hola!',
+      expect.any(Object),
+      expect.objectContaining({ embed: false, conversationId: 'conv-new' })
+    );
+  });
+
   it('injects the session history block into analytical queries', async () => {
-    const res = await request.post('/api/v1/datos').send({
+    const res = await postDatos({
       prompt: 'y como sigue esa zona?',
       history: [
         { role: 'user', content: 'hola, soy Ale' },
@@ -371,23 +402,5 @@ describe('POST /api/v1/datos — per-user model and memory', () => {
     expect(userMessage).toContain('CONVERSACIÓN ACTUAL');
     expect(userMessage).toContain('soy Ale');
     expect(userMessage).not.toContain('ignorame');
-  });
-
-  it('does not persist small talk turns', async () => {
-    const res = await request
-      .post('/api/v1/datos')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ prompt: 'hola!' });
-
-    expect(res.status).toBe(200);
-    expect(saveTurn).not.toHaveBeenCalled();
-  });
-
-  it('does not touch memory for anonymous requests', async () => {
-    const res = await request.post('/api/v1/datos').send({ prompt: 'panorama general' });
-
-    expect(res.status).toBe(200);
-    expect(recallRelevant).not.toHaveBeenCalled();
-    expect(saveTurn).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,11 @@ import { parseAgentResponse } from '../../ai/responseParser.js';
 import { isModelAllowed } from '../../ai/model.registry.js';
 import { getPreferredModel } from '../models/models.service.js';
 import { recallRelevant, saveTurn } from '../memory/memory.service.js';
+import {
+  getOwnedConversation,
+  createConversation,
+  touchConversation,
+} from '../conversations/conversations.service.js';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../config/logger.js';
 import { ServiceUnavailableError } from '../../utils/errors.js';
@@ -49,6 +54,18 @@ function sanitizeHistory(history) {
     )
     .slice(-MAX_HISTORY_TURNS)
     .map((turn) => ({ role: turn.role, content: turn.content.trim().slice(0, MAX_HISTORY_CHARS) }));
+}
+
+// Resolve the thread this turn belongs to: reuse the conversation sent by the
+// frontend when the user owns it, otherwise start a new one titled after the
+// prompt. Null when persistence is unavailable (chat still answers).
+async function resolveConversation(userId, conversationId, prompt) {
+  if (conversationId) {
+    const owned = await getOwnedConversation(userId, conversationId);
+    if (owned) return owned.id;
+  }
+  const created = await createConversation(userId, prompt);
+  return created?.id ?? null;
 }
 
 function conversationBlock(sessionHistory) {
@@ -158,7 +175,8 @@ function summarizeNearbyPublicServices(zones, services, antenas) {
 
 export async function queryData(req, res, next) {
   try {
-    const { prompt, region, regions, ecgi, indicator, language, model, history } = req.body;
+    const { prompt, region, regions, ecgi, indicator, language, model, history, conversationId } =
+      req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'prompt is required' });
@@ -166,6 +184,7 @@ export async function queryData(req, res, next) {
 
     const resolvedModel = await resolveModel(model, req.user);
     const sessionHistory = sanitizeHistory(history);
+    const threadId = await resolveConversation(req.user.id, conversationId, prompt);
 
     // Small-talk fast path: a greeting needs no data, no RAG and no FUENTES
     // chips in the UI. Answering conversationally (system prompt SALUDO rule)
@@ -180,9 +199,22 @@ export async function queryData(req, res, next) {
         if (!parsedResponse.respuesta) {
           throw new Error('OpenRouter returned empty or invalid content');
         }
+        // Small talk belongs in the transcript but not in similarity recall:
+        // persist without embedding, off the response's critical path.
+        if (threadId) {
+          const opts = { embed: false, conversationId: threadId };
+          saveTurn(req.user.id, 'user', prompt, {}, opts).catch((err) =>
+            logger.warn({ err }, 'saveTurn(user) failed')
+          );
+          saveTurn(req.user.id, 'assistant', parsedResponse.respuesta, {}, opts).catch((err) =>
+            logger.warn({ err }, 'saveTurn(assistant) failed')
+          );
+          touchConversation(threadId);
+        }
         return res.json({
           respuesta_ia: parsedResponse.respuesta,
           clusters_destacados: [],
+          conversation_id: threadId,
           datos_extra: {
             regiones_riesgo: 0,
             antenas_encontradas: 0,
@@ -353,6 +385,7 @@ DATOS ESTRUCTURADOS DE LAS ZONAS:
     res.json({
       respuesta_ia: respuesta,
       clusters_destacados: clustersDestacados.filter((c) => validClusters.has(c)),
+      conversation_id: threadId,
       datos_extra: {
         regiones_riesgo: riesgo?.length ?? 0,
         antenas_encontradas: antenas?.length ?? 0,
@@ -371,15 +404,18 @@ DATOS ESTRUCTURADOS DE LAS ZONAS:
 
     // Persist the turn AFTER answering (fire-and-forget): memory writes add
     // an embedding call + 2 inserts and must not raise chat latency.
-    if (req.user && !isSmallTalk(prompt)) {
-      const meta = { regions: selectedRegions, ecgi: ecgi ?? null, model: resolvedModel ?? null };
-      saveTurn(req.user.id, 'user', prompt, meta).catch((err) =>
-        logger.warn({ err }, 'saveTurn(user) failed')
-      );
-      saveTurn(req.user.id, 'assistant', respuesta, {
-        clusters_destacados: clustersDestacados,
-      }).catch((err) => logger.warn({ err }, 'saveTurn(assistant) failed'));
-    }
+    const meta = { regions: selectedRegions, ecgi: ecgi ?? null, model: resolvedModel ?? null };
+    saveTurn(req.user.id, 'user', prompt, meta, { conversationId: threadId }).catch((err) =>
+      logger.warn({ err }, 'saveTurn(user) failed')
+    );
+    saveTurn(
+      req.user.id,
+      'assistant',
+      respuesta,
+      { clusters_destacados: clustersDestacados },
+      { conversationId: threadId }
+    ).catch((err) => logger.warn({ err }, 'saveTurn(assistant) failed'));
+    if (threadId) touchConversation(threadId);
   } catch (err) {
     next(err);
   }

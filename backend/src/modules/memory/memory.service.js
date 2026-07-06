@@ -11,12 +11,20 @@ const RECENT_TURNS = 4;
 /**
  * Persists one chat turn for the user. Embeds the content when possible so
  * the turn is retrievable by similarity; inserts without embedding otherwise
- * (still visible to recency-based recall).
+ * (still visible to recency-based recall and the transcript). Pass
+ * `embed: false` for turns that belong in the transcript but must not pollute
+ * similarity retrieval (greetings/small talk).
  */
-export async function saveTurn(userId, role, content, metadata = {}) {
+export async function saveTurn(
+  userId,
+  role,
+  content,
+  metadata = {},
+  { embed = true, conversationId = null } = {}
+) {
   if (!supabaseAdmin || !userId || !content) return;
 
-  const embedding = await embedText(content);
+  const embedding = embed ? await embedText(content) : null;
 
   const { error } = await supabaseAdmin.from('conversation_memory').insert({
     user_id: userId,
@@ -24,6 +32,7 @@ export async function saveTurn(userId, role, content, metadata = {}) {
     content,
     embedding,
     metadata,
+    conversation_id: conversationId,
   });
 
   if (error) {

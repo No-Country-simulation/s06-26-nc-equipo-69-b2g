@@ -40,6 +40,7 @@ describe('saveTurn', () => {
       content: 'zonas sin cobertura',
       embedding: EMBEDDING,
       metadata: { regions: ['SANTO_AMARO'] },
+      conversation_id: null,
     });
   });
 
