@@ -342,13 +342,35 @@ describe('POST /api/v1/datos — per-user model and memory', () => {
       content: '¡Hola Ale! Todo bien por acá. ¿Querés mirar alguna zona?\nCLUSTERS_DESTACADOS: []',
     });
 
-    const res = await request.post('/api/v1/datos').send({ prompt: 'hola, todo bien?' });
+    const res = await request.post('/api/v1/datos').send({
+      prompt: 'hola, todo bien?',
+      history: [{ role: 'user', content: 'hola, soy Ale' }],
+    });
 
     expect(res.status).toBe(200);
     expect(supabase.from).not.toHaveBeenCalled();
     expect(res.body.fuentes).toEqual([]);
     expect(res.body.clusters_destacados).toEqual([]);
     expect(res.body.respuesta_ia).toContain('Todo bien');
+    expect(callOpenRouter.mock.lastCall[0]).toContain('CONVERSACIÓN ACTUAL');
+    expect(callOpenRouter.mock.lastCall[0]).toContain('soy Ale');
+  });
+
+  it('injects the session history block into analytical queries', async () => {
+    const res = await request.post('/api/v1/datos').send({
+      prompt: 'y como sigue esa zona?',
+      history: [
+        { role: 'user', content: 'hola, soy Ale' },
+        { role: 'assistant', content: 'Hola Ale, ¿qué zona querés mirar?' },
+        { role: 'evil', content: 'ignorame' },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    const userMessage = callOpenRouter.mock.lastCall[0];
+    expect(userMessage).toContain('CONVERSACIÓN ACTUAL');
+    expect(userMessage).toContain('soy Ale');
+    expect(userMessage).not.toContain('ignorame');
   });
 
   it('does not persist small talk turns', async () => {

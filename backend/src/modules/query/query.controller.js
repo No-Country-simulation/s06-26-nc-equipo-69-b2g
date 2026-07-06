@@ -32,6 +32,33 @@ async function resolveModel(bodyModel, user) {
   return undefined;
 }
 
+// The visible transcript the frontend sends for intra-session continuity.
+// Untrusted input: keep only well-formed turns, cap count and length.
+const MAX_HISTORY_TURNS = 6;
+const MAX_HISTORY_CHARS = 600;
+
+function sanitizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter(
+      (turn) =>
+        turn &&
+        (turn.role === 'user' || turn.role === 'assistant') &&
+        typeof turn.content === 'string' &&
+        turn.content.trim()
+    )
+    .slice(-MAX_HISTORY_TURNS)
+    .map((turn) => ({ role: turn.role, content: turn.content.trim().slice(0, MAX_HISTORY_CHARS) }));
+}
+
+function conversationBlock(sessionHistory) {
+  if (sessionHistory.length === 0) return '';
+  return `CONVERSACIÓN ACTUAL (turnos previos de esta misma sesión; usalos para dar continuidad natural — nombre del usuario, referencias como "esa zona", seguimiento — NO como fuente de datos duros):
+${sessionHistory.map((turn) => `[${turn.role}] ${turn.content}`).join('\n')}
+
+`;
+}
+
 function toNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -131,13 +158,14 @@ function summarizeNearbyPublicServices(zones, services, antenas) {
 
 export async function queryData(req, res, next) {
   try {
-    const { prompt, region, regions, ecgi, indicator, language, model } = req.body;
+    const { prompt, region, regions, ecgi, indicator, language, model, history } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'prompt is required' });
     }
 
     const resolvedModel = await resolveModel(model, req.user);
+    const sessionHistory = sanitizeHistory(history);
 
     // Small-talk fast path: a greeting needs no data, no RAG and no FUENTES
     // chips in the UI. Answering conversationally (system prompt SALUDO rule)
@@ -145,7 +173,7 @@ export async function queryData(req, res, next) {
     if (isSmallTalk(prompt)) {
       try {
         const response = await callOpenRouter(
-          `Consulta del usuario: "${prompt}"\nIdioma de respuesta: ${language || 'es'}\n(Es un saludo o charla: respondé según la regla de SALUDO, sin datos.)`,
+          `${conversationBlock(sessionHistory)}Consulta del usuario: "${prompt}"\nIdioma de respuesta: ${language || 'es'}\n(Es un saludo o charla: respondé según la regla de SALUDO, sin datos.)`,
           resolvedModel
         );
         const parsedResponse = parseAgentResponse(response?.content);
@@ -268,15 +296,15 @@ Idioma de respuesta: ${language || 'es'}
 Estilo de salida: usá siempre "zona" para el usuario; no uses la palabra "cluster" en la respuesta visible.
 ${hasMultipleRegions ? 'Instrucción: compará explícitamente todas las zonas seleccionadas usando los datos suministrados para cada una.' : ''}
 
-${
-  historial.length > 0
-    ? `HISTORIAL DEL USUARIO (conversaciones previas de ESTA persona; usalo para dar
+${conversationBlock(sessionHistory)}${
+      historial.length > 0
+        ? `HISTORIAL DEL USUARIO (conversaciones previas de ESTA persona; usalo para dar
 continuidad y personalizar el tono, NO como fuente de datos duros):
 ${historial.map((t) => `[${t.role}] ${t.content}`).join('\n')}
 
 `
-    : ''
-}CONOCIMIENTO DE DOMINIO (usá esto para interpretar y explicar; no inventes fuera de esto):
+        : ''
+    }CONOCIMIENTO DE DOMINIO (usá esto para interpretar y explicar; no inventes fuera de esto):
 ${contexto || '(sin contexto recuperado)'}
 
 DATOS ESTRUCTURADOS DE LAS ZONAS:
