@@ -1,14 +1,22 @@
-# docs-spec — Especificaciones pendientes de implementar
+# docs-spec — Especificaciones
 
-Cada archivo acá es una feature **diseñada pero NO implementada todavía**. Están
-escritas para que otra IA (o dev) las ejecute sin tener que redescubrir el
-contexto. Antes de implementar una, leé el archivo completo y verificá que el
-estado del código sigue siendo el que describe la sección "Estado actual".
+Cada archivo acá es una feature diseñada para que otra IA (o dev) la ejecute sin
+redescubrir el contexto. Antes de retomar una, leé el archivo completo y verificá
+que el estado del código sigue siendo el que describe la sección "Estado actual".
 
 | Spec | Feature | Estado |
 |------|---------|--------|
-| [per-user-model-persistence.md](./per-user-model-persistence.md) | Que el modelo de IA elegido persista por usuario (cross-device) | Pendiente |
-| [conversation-memory.md](./conversation-memory.md) | Memoria de conversación por usuario (tabla vectorial) para personalizar respuestas | Pendiente |
+| [per-user-model-persistence.md](./per-user-model-persistence.md) | Que el modelo de IA elegido persista por usuario (cross-device) | Implementada (2026-07-06) |
+| [conversation-memory.md](./conversation-memory.md) | Memoria de conversación por usuario (tabla vectorial) para personalizar respuestas | Implementada (2026-07-06) |
+
+Notas de implementación (2026-07-06):
+- Embeddings en uso: `vector(2048)` (nemotron). `conversation_memory` NO lleva
+  índice ANN: pgvector ivfflat/hnsw soportan máx 2000 dims; la RPC
+  `match_conversation_memory` escanea solo las filas del usuario.
+- Whitelist de modelos refrescada contra el catálogo vivo de OpenRouter:
+  `google/gemini-2.0-flash-001` y `anthropic/claude-3.5-haiku` ya no existen;
+  se reemplazaron por `google/gemini-2.5-flash-lite` y `anthropic/claude-haiku-4.5`.
+- `DELETE /api/v1/memory` (requireAuth) borra el historial del usuario.
 
 ## Contexto compartido (leer una vez)
 

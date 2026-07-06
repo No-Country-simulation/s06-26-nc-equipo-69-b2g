@@ -7,10 +7,21 @@ vi.mock('../ai/openrouter.service.js', () => ({
 vi.mock('../ai/embeddings.service.js', () => ({
   embedText: vi.fn().mockResolvedValue(null),
 }));
+vi.mock('../modules/memory/memory.service.js', () => ({
+  recallRelevant: vi.fn().mockResolvedValue([]),
+  saveTurn: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../modules/models/models.service.js', () => ({
+  getPreferredModel: vi.fn().mockResolvedValue(null),
+  setPreferredModel: vi.fn().mockResolvedValue(true),
+}));
 
 import { app } from '../app.js';
 import { supabase } from '../lib/supabase.js';
 import { callOpenRouter } from '../ai/openrouter.service.js';
+import { recallRelevant, saveTurn } from '../modules/memory/memory.service.js';
+import { getPreferredModel } from '../modules/models/models.service.js';
+import { generateToken } from '../modules/auth/jwt.service.js';
 
 const request = supertest(app);
 
@@ -244,5 +255,100 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
 
     expect(res.status).toBe(200);
     expect(supabase.rpc).not.toHaveBeenCalledWith('mapa_demografia', expect.anything());
+  });
+});
+
+describe('POST /api/v1/datos — per-user model and memory', () => {
+  const USER = { id: '11111111-1111-1111-1111-111111111111', email: 'gestor@b2g.gov' };
+  const token = generateToken(USER);
+
+  beforeEach(() => {
+    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
+    recallRelevant.mockReset().mockResolvedValue([]);
+    saveTurn.mockReset().mockResolvedValue(undefined);
+    getPreferredModel.mockReset().mockResolvedValue(null);
+  });
+
+  it('uses the whitelisted model sent in the body', async () => {
+    const res = await request
+      .post('/api/v1/datos')
+      .send({ prompt: 'riesgo por zona', model: 'openai/gpt-4o-mini' });
+
+    expect(res.status).toBe(200);
+    expect(callOpenRouter.mock.lastCall[1]).toBe('openai/gpt-4o-mini');
+  });
+
+  it('ignores a body model outside the whitelist', async () => {
+    const res = await request
+      .post('/api/v1/datos')
+      .send({ prompt: 'riesgo por zona', model: 'evil/not-allowed' });
+
+    expect(res.status).toBe(200);
+    expect(callOpenRouter.mock.lastCall[1]).toBeUndefined();
+  });
+
+  it('falls back to the persisted preference for an authenticated user', async () => {
+    getPreferredModel.mockResolvedValue('meta-llama/llama-3.3-70b-instruct');
+
+    const res = await request
+      .post('/api/v1/datos')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ prompt: 'riesgo por zona' });
+
+    expect(res.status).toBe(200);
+    expect(getPreferredModel).toHaveBeenCalledWith(USER.id);
+    expect(callOpenRouter.mock.lastCall[1]).toBe('meta-llama/llama-3.3-70b-instruct');
+  });
+
+  it('injects the user history section and persists both turns when authenticated', async () => {
+    recallRelevant.mockResolvedValue([
+      { id: 1, role: 'user', content: 'me interesa Santo Amaro', created_at: '2026-07-01' },
+    ]);
+    callOpenRouter.mockResolvedValue({
+      role: 'assistant',
+      content: 'Análisis.\nCLUSTERS_DESTACADOS: ["SANTO_AMARO"]',
+    });
+
+    const res = await request
+      .post('/api/v1/datos')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ prompt: 'como sigue esa zona', regions: ['SANTO_AMARO'] });
+
+    expect(res.status).toBe(200);
+    expect(recallRelevant).toHaveBeenCalledWith(USER.id, 'como sigue esa zona');
+    const userMessage = callOpenRouter.mock.lastCall[0];
+    expect(userMessage).toContain('HISTORIAL DEL USUARIO');
+    expect(userMessage).toContain('me interesa Santo Amaro');
+    expect(saveTurn).toHaveBeenCalledWith(
+      USER.id,
+      'user',
+      'como sigue esa zona',
+      expect.objectContaining({ regions: ['SANTO_AMARO'] })
+    );
+    expect(saveTurn).toHaveBeenCalledWith(
+      USER.id,
+      'assistant',
+      'Análisis.',
+      expect.objectContaining({ clusters_destacados: ['SANTO_AMARO'] })
+    );
+  });
+
+  it('does not persist small talk turns', async () => {
+    const res = await request
+      .post('/api/v1/datos')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ prompt: 'hola!' });
+
+    expect(res.status).toBe(200);
+    expect(saveTurn).not.toHaveBeenCalled();
+  });
+
+  it('does not touch memory for anonymous requests', async () => {
+    const res = await request.post('/api/v1/datos').send({ prompt: 'panorama general' });
+
+    expect(res.status).toBe(200);
+    expect(recallRelevant).not.toHaveBeenCalled();
+    expect(saveTurn).not.toHaveBeenCalled();
   });
 });

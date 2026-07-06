@@ -16,9 +16,13 @@ vi.mock('../lib/supabase.js', () => ({
     },
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     }),
   },
+  // No service role in tests: services that need it must degrade gracefully.
+  supabaseAdmin: null,
 }));
 
 vi.mock('../lib/db.js', () => ({

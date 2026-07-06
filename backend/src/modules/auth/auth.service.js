@@ -1,14 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
-import { supabase } from '../../lib/supabase.js';
+import { supabase, supabaseAdmin } from '../../lib/supabase.js';
 import { UnauthorizedError } from '../../utils/errors.js';
-import { env } from '../../config/env.js';
 import { generateToken } from './jwt.service.js';
 
 // public.users has RLS enabled with no anon policies, so profile reads need
-// the service role. Without it we fall back to the validated auth payload.
-const supabaseAdmin = env.SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
-  : null;
+// the service role (lib/supabase.js#supabaseAdmin). Without it we fall back
+// to the validated auth payload.
 
 const USER_COLUMNS = 'id, email, first_name, last_name, avatar_url';
 

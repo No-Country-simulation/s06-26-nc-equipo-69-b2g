@@ -1,12 +1,32 @@
 import { callOpenRouter } from '../../ai/openrouter.service.js';
 import { embedText } from '../../ai/embeddings.service.js';
 import { parseAgentResponse } from '../../ai/responseParser.js';
+import { isModelAllowed } from '../../ai/model.registry.js';
+import { getPreferredModel } from '../models/models.service.js';
+import { recallRelevant, saveTurn } from '../memory/memory.service.js';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../config/logger.js';
 import { ServiceUnavailableError } from '../../utils/errors.js';
 
 const PUBLIC_SERVICE_RADIUS_KM = 2;
 const MAX_NEAREST_SERVICES_PER_ZONE = 3;
+
+// Small talk is not worth remembering: it fills the vector memory with "hola"
+// rows that pollute similarity retrieval.
+const SMALL_TALK_PATTERN =
+  /^\s*(hola|buenas|buen[oa]s?\s+(d[ií]as|tardes|noches)|hey|hi|hello|gracias|ok|dale|chau|adi[oó]s)[\s!.,?]*$/i;
+
+function isSmallTalk(prompt) {
+  return SMALL_TALK_PATTERN.test(prompt);
+}
+
+// Body model (explicit per query) wins over the user's persisted preference;
+// undefined lets callOpenRouter fall back to the server default.
+async function resolveModel(bodyModel, user) {
+  if (bodyModel && isModelAllowed(bodyModel)) return bodyModel;
+  if (user) return (await getPreferredModel(user.id)) ?? undefined;
+  return undefined;
+}
 
 function toNumber(value) {
   const parsed = Number(value);
@@ -107,11 +127,17 @@ function summarizeNearbyPublicServices(zones, services, antenas) {
 
 export async function queryData(req, res, next) {
   try {
-    const { prompt, region, regions, ecgi, indicator, language } = req.body;
+    const { prompt, region, regions, ecgi, indicator, language, model } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'prompt is required' });
     }
+
+    const resolvedModel = await resolveModel(model, req.user);
+
+    // Per-user memory (only when authenticated via optionalAuth). Failures
+    // must never block the answer, so recall degrades to [].
+    const historial = req.user ? await recallRelevant(req.user.id, prompt) : [];
 
     const selectedRegions = Array.isArray(regions) ? [...new Set(regions.filter(Boolean))] : [];
     const hasMultipleRegions = selectedRegions.length > 1;
@@ -208,7 +234,15 @@ Idioma de respuesta: ${language || 'es'}
 Estilo de salida: usá siempre "zona" para el usuario; no uses la palabra "cluster" en la respuesta visible.
 ${hasMultipleRegions ? 'Instrucción: compará explícitamente todas las zonas seleccionadas usando los datos suministrados para cada una.' : ''}
 
-CONOCIMIENTO DE DOMINIO (usá esto para interpretar y explicar; no inventes fuera de esto):
+${
+  historial.length > 0
+    ? `HISTORIAL DEL USUARIO (conversaciones previas de ESTA persona; usalo para dar
+continuidad y personalizar el tono, NO como fuente de datos duros):
+${historial.map((t) => `[${t.role}] ${t.content}`).join('\n')}
+
+`
+    : ''
+}CONOCIMIENTO DE DOMINIO (usá esto para interpretar y explicar; no inventes fuera de esto):
 ${contexto || '(sin contexto recuperado)'}
 
 DATOS ESTRUCTURADOS DE LAS ZONAS:
@@ -229,7 +263,7 @@ DATOS ESTRUCTURADOS DE LAS ZONAS:
     let respuesta;
     let clustersDestacados;
     try {
-      const response = await callOpenRouter(userMessage);
+      const response = await callOpenRouter(userMessage, resolvedModel);
       const parsedResponse = parseAgentResponse(response?.content);
 
       if (!parsedResponse.respuesta) {
@@ -272,6 +306,18 @@ DATOS ESTRUCTURADOS DE LAS ZONAS:
         ...new Set(ragChunks.map((c) => c.fuente)),
       ],
     });
+
+    // Persist the turn AFTER answering (fire-and-forget): memory writes add
+    // an embedding call + 2 inserts and must not raise chat latency.
+    if (req.user && !isSmallTalk(prompt)) {
+      const meta = { regions: selectedRegions, ecgi: ecgi ?? null, model: resolvedModel ?? null };
+      saveTurn(req.user.id, 'user', prompt, meta).catch((err) =>
+        logger.warn({ err }, 'saveTurn(user) failed')
+      );
+      saveTurn(req.user.id, 'assistant', respuesta, {
+        clusters_destacados: clustersDestacados,
+      }).catch((err) => logger.warn({ err }, 'saveTurn(assistant) failed'));
+    }
   } catch (err) {
     next(err);
   }

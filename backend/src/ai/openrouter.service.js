@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { env } from '../config/env.js';
-import { getCurrentModel } from './model.registry.js';
+import { getDefaultModel } from './model.registry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // The system prompt is source-of-truth code, co-located in the AI module.
@@ -16,7 +16,7 @@ const SYSTEM_PROMPT = readFileSync(join(__dirname, 'system-prompt.md'), 'utf-8')
 // receives a clean error instead of waiting forever.
 const OPENROUTER_TIMEOUT_MS = 45_000;
 
-export async function callOpenRouter(userMessage) {
+export async function callOpenRouter(userMessage, model) {
   if (!env.OPENROUTER_API_KEY) {
     return {
       role: 'assistant',
@@ -33,9 +33,9 @@ export async function callOpenRouter(userMessage) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        // Runtime-selected model (see model.registry.js). Falls back to the
-        // env default until the user changes it from the chat.
-        model: getCurrentModel(),
+        // Per-request model resolved by the caller (body > user preference).
+        // Falls back to the server default (see model.registry.js).
+        model: model || getDefaultModel(),
         // Cap length: the system prompt asks for ~120 words, but some models
         // (e.g. DeepSeek) ignore it and ramble, which raises latency and trips
         // the frontend request timeout. max_tokens is the hard guardrail.

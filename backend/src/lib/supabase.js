@@ -11,3 +11,10 @@ if (!supabaseKey) {
 }
 
 export const supabase = createClient(env.SUPABASE_URL, supabaseKey);
+
+// Service-role client for tables with RLS and no anon policies (e.g. users,
+// conversation_memory). Null when the key is absent so callers can degrade
+// instead of crashing at import time.
+export const supabaseAdmin = env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
