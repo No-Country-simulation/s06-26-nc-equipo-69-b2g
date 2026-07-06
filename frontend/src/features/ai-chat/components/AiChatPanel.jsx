@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { GripHorizontal, Send, Sparkles, X, MapPin, RadioTower } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle } from '@/shared/components/ui/sheet'
 import { askTerritorio } from '../api/datosService'
+import ModelSelector from './ModelSelector'
 import useMapPageStore from '@/features/map-page/store/useMapPageStore'
 
 const initialMessages = [
@@ -296,6 +297,8 @@ function AiChatContent({ dragHandleProps, onClose }) {
           <X className="h-4 w-4" />
         </button>
       </div>
+
+      <ModelSelector />
 
       {chatRegions.length > 0 || chatContext?.ecgi ? (
         <ChatContextBar
