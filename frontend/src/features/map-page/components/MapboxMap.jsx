@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getClusters, getConcentracao, getDemografia } from '../api/mapaService'
-import { addAllSourcesAndLayers, addAntenaInteractions, addClusterClickHandler, ensureCorredoresLoaded, updateLayerVisibility } from '../lib/mapLayers'
+import { addAllSourcesAndLayers, addMapInteractions, ensureCorredoresLoaded, updateLayerVisibility } from '../lib/mapLayers'
 import useMapPageStore from '../store/useMapPageStore'
 
 const token = import.meta.env.VITE_API_KEY_MAPBOX
@@ -97,8 +97,7 @@ export default function MapboxMap({ selectedPeriodo }) {
             return
           }
 
-          addClusterClickHandler(map, getStoreState)
-          addAntenaInteractions(map, mapboxgl, getStoreState)
+          addMapInteractions(map, mapboxgl, getStoreState)
 
           if (!demografiaData) {
             try {

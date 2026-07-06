@@ -130,54 +130,42 @@ export async function addAntenasLayer(map) {
   })
 }
 
-/**
- * Hover tooltip with network quality per antenna, and click-to-chat context
- * (ecgi). Receives the mapboxgl module because it is dynamically imported
- * by the map component.
- */
-export function addAntenaInteractions(map, mapboxgl, getStoreState) {
-  const popup = new mapboxgl.Popup({
-    closeButton: false,
-    closeOnClick: false,
-    offset: 14,
-    className: 'antena-tooltip',
-  })
+const PERIODO_LABELS = {
+  MADRUGADA: 'Madrugada',
+  MANHA: 'Mañana',
+  TARDE: 'Tarde',
+  NOITE: 'Noche',
+}
 
-  map.on('mousemove', 'antenas-layer', (e) => {
-    const feature = e.features?.[0]
-    if (!feature) return
+function antenaTooltipHtml(props) {
+  const { cluster, municipio, n_usuarios, congestion_media, drop_pct_media } = props
+  return `
+    <div style="font-family: inherit; font-size: 11px; line-height: 1.5; min-width: 150px;">
+      <strong style="font-size: 12px;">${(cluster ?? '').replace(/_/g, ' ')}</strong>
+      <span style="color: #6b7280;"> · ${municipio ?? ''}</span>
+      <div style="margin-top: 4px; display: grid; grid-template-columns: auto auto; gap: 0 12px;">
+        <span style="color:#6b7280">Usuarios</span><span style="text-align:right; font-weight:600">${Number(n_usuarios ?? 0).toLocaleString('es')}</span>
+        <span style="color:#6b7280">Congestión</span><span style="text-align:right; font-weight:600">${((congestion_media ?? 0) * 100).toFixed(1)}%</span>
+        <span style="color:#6b7280">Drop</span><span style="text-align:right; font-weight:600">${((drop_pct_media ?? 0) * 100).toFixed(2)}%</span>
+      </div>
+    </div>
+  `
+}
 
-    map.getCanvas().style.cursor = 'pointer'
-
-    const { cluster, municipio, n_usuarios, congestion_media, drop_pct_media } = feature.properties
-    popup
-      .setLngLat(feature.geometry.coordinates)
-      .setHTML(`
-        <div style="font-family: inherit; font-size: 11px; line-height: 1.5; min-width: 150px;">
-          <strong style="font-size: 12px;">${(cluster ?? '').replace(/_/g, ' ')}</strong>
-          <span style="color: #6b7280;"> · ${municipio ?? ''}</span>
-          <div style="margin-top: 4px; display: grid; grid-template-columns: auto auto; gap: 0 12px;">
-            <span style="color:#6b7280">Usuarios</span><span style="text-align:right; font-weight:600">${Number(n_usuarios ?? 0).toLocaleString('es')}</span>
-            <span style="color:#6b7280">Congestión</span><span style="text-align:right; font-weight:600">${((congestion_media ?? 0) * 100).toFixed(1)}%</span>
-            <span style="color:#6b7280">Drop</span><span style="text-align:right; font-weight:600">${((drop_pct_media ?? 0) * 100).toFixed(2)}%</span>
-          </div>
-        </div>
-      `)
-      .addTo(map)
-  })
-
-  map.on('mouseleave', 'antenas-layer', () => {
-    map.getCanvas().style.cursor = ''
-    popup.remove()
-  })
-
-  map.on('click', 'antenas-layer', (e) => {
-    const ecgi = e.features?.[0]?.properties?.ecgi
-    if (!ecgi) return
-
-    getStoreState().setChatContext({ ecgi })
-    getStoreState().openLeftSidebar()
-  })
+function corredorTooltipHtml(props) {
+  const { cluster_origem, cluster_destino, n_viagens, n_usuarios, dist_media_km, periodo_predominante } = props
+  return `
+    <div style="font-family: inherit; font-size: 11px; line-height: 1.5; min-width: 170px;">
+      <p style="margin:0 0 2px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#0891b2;">Corredor de movilidad</p>
+      <strong style="font-size: 12px;">${(cluster_origem ?? '').replace(/_/g, ' ')} → ${(cluster_destino ?? '').replace(/_/g, ' ')}</strong>
+      <div style="margin-top: 4px; display: grid; grid-template-columns: auto auto; gap: 0 12px;">
+        <span style="color:#6b7280">Viajes (15 días)</span><span style="text-align:right; font-weight:600">${Number(n_viagens ?? 0).toLocaleString('es')}</span>
+        <span style="color:#6b7280">Personas</span><span style="text-align:right; font-weight:600">${Number(n_usuarios ?? 0).toLocaleString('es')}</span>
+        <span style="color:#6b7280">Distancia media</span><span style="text-align:right; font-weight:600">${Number(dist_media_km ?? 0).toFixed(1)} km</span>
+        <span style="color:#6b7280">Período principal</span><span style="text-align:right; font-weight:600">${PERIODO_LABELS[periodo_predominante] ?? periodo_predominante ?? '—'}</span>
+      </div>
+    </div>
+  `
 }
 
 function buildArcCoordinates(start, end) {
@@ -375,23 +363,110 @@ export async function ensureCorredoresLoaded(map, activeFilters) {
   }
 }
 
-export function addClusterClickHandler(map, getStoreState) {
-  map.on('click', 'clusters-layer', (e) => {
-    const feature = e.features?.[0]
-    if (!feature) return
+const INTERACTIVE_LAYERS = ['clusters-layer', 'antenas-layer', 'corredores-layer']
 
-    const clusterName = feature.properties?.cluster
-    if (!clusterName) return
+// Touch-friendly hit area: fingers are ~10px less precise than a cursor
+const TAP_TOLERANCE_PX = 10
 
+/**
+ * Unified tap/click + hover handling for all interactive layers.
+ * A single map-level click with a padded hitbox works for touch devices,
+ * where per-layer pixel-perfect clicks and hover do not exist.
+ * Receives the mapboxgl module because the map component imports it lazily.
+ */
+export function addMapInteractions(map, mapboxgl, getStoreState) {
+  const tooltip = new mapboxgl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    offset: 14,
+  })
+  const infoPopup = new mapboxgl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    offset: 14,
+  })
+
+  const selectCluster = (clusterName) => {
     const { demografiaData, clusterProperties } = getStoreState()
     const demo = demografiaData?.clusters?.[clusterName]
     const props = clusterProperties?.[clusterName]
-
     if (!demo && !props) return
 
     getStoreState().setSelectedCluster(buildClusterDetail(clusterName, demo, props))
     getStoreState().setChatContext({ region: clusterName })
     getStoreState().openLeftSidebar()
+  }
+
+  map.on('click', (e) => {
+    const pad = TAP_TOLERANCE_PX
+    const bbox = [
+      [e.point.x - pad, e.point.y - pad],
+      [e.point.x + pad, e.point.y + pad],
+    ]
+    const layers = INTERACTIVE_LAYERS.filter((id) => map.getLayer(id))
+    const features = map.queryRenderedFeatures(bbox, { layers })
+    if (features.length === 0) return
+
+    // queryRenderedFeatures returns topmost-rendered first, respecting z-order
+    const feature = features[0]
+
+    if (feature.layer.id === 'clusters-layer') {
+      const clusterName = feature.properties?.cluster
+      if (clusterName) selectCluster(clusterName)
+      return
+    }
+
+    if (feature.layer.id === 'antenas-layer') {
+      tooltip.remove()
+      infoPopup
+        .setLngLat(feature.geometry.coordinates)
+        .setHTML(antenaTooltipHtml(feature.properties))
+        .addTo(map)
+
+      const ecgi = feature.properties?.ecgi
+      if (ecgi) {
+        getStoreState().setChatContext({ ecgi })
+        getStoreState().openLeftSidebar()
+      }
+      return
+    }
+
+    if (feature.layer.id === 'corredores-layer') {
+      tooltip.remove()
+      infoPopup
+        .setLngLat(e.lngLat)
+        .setHTML(corredorTooltipHtml(feature.properties))
+        .addTo(map)
+    }
+  })
+
+  // Desktop-only affordances: hover tooltips and pointer cursor
+  map.on('mousemove', 'antenas-layer', (e) => {
+    const feature = e.features?.[0]
+    if (!feature) return
+    map.getCanvas().style.cursor = 'pointer'
+    tooltip
+      .setLngLat(feature.geometry.coordinates)
+      .setHTML(antenaTooltipHtml(feature.properties))
+      .addTo(map)
+  })
+  map.on('mouseleave', 'antenas-layer', () => {
+    map.getCanvas().style.cursor = ''
+    tooltip.remove()
+  })
+
+  map.on('mousemove', 'corredores-layer', (e) => {
+    const feature = e.features?.[0]
+    if (!feature) return
+    map.getCanvas().style.cursor = 'pointer'
+    tooltip
+      .setLngLat(e.lngLat)
+      .setHTML(corredorTooltipHtml(feature.properties))
+      .addTo(map)
+  })
+  map.on('mouseleave', 'corredores-layer', () => {
+    map.getCanvas().style.cursor = ''
+    tooltip.remove()
   })
 
   map.on('mouseenter', 'clusters-layer', () => {
