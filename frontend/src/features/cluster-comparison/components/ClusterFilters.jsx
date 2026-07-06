@@ -1,22 +1,38 @@
-import { useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Search, X, RotateCcw } from 'lucide-react'
 
 const filters = [
-  { id: 'alto', label: 'Riesgo Alto', color: 'bg-red-500' },
-  { id: 'medio', label: 'Riesgo Medio', color: 'bg-yellow-500' },
+  { id: 'ALTO', label: 'Riesgo Alto', color: 'bg-red-500' },
+  { id: 'MEDIO', label: 'Riesgo Medio', color: 'bg-yellow-500' },
 ]
 
-export default function ClusterFilters() {
-  const [active, setActive] = useState(['alto', 'medio'])
-
-  const remove = (id) => {
-    setActive((prev) => prev.filter((f) => f !== id))
-  }
+export default function ClusterFilters({ activeFilters, onToggleFilter, search, onSearchChange, onClearAll }) {
+  const hasActiveFilters = activeFilters.length < 2 || search.length > 0
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
+      {/* Buscador */}
+      <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Buscar zona..."
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs text-gray-700 placeholder-gray-400 shadow-sm transition-colors focus:border-[#564C8E] focus:outline-none focus:ring-1 focus:ring-[#564C8E]"
+        />
+        {search && (
+          <button
+            onClick={() => onSearchChange('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-gray-400 hover:text-gray-600"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      {/* Filtros de riesgo */}
       {filters.map((f) =>
-        active.includes(f.id) ? (
+        activeFilters.includes(f.id) ? (
           <span
             key={f.id}
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-white shadow-sm"
@@ -25,7 +41,7 @@ export default function ClusterFilters() {
             <span className={`h-2 w-2 rounded-full ${f.color}`} />
             {f.label}
             <button
-              onClick={() => remove(f.id)}
+              onClick={() => onToggleFilter(f.id)}
               className="-mr-0.5 ml-0.5 rounded-full p-0.5 text-white transition-opacity hover:opacity-70"
             >
               <X className="h-3 w-3" />
@@ -34,8 +50,8 @@ export default function ClusterFilters() {
         ) : (
           <button
             key={f.id}
-            onClick={() => setActive((prev) => [...prev, f.id])}
-            className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-white/50 px-3 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-white/80 hover:text-gray-500"
+            onClick={() => onToggleFilter(f.id)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
           >
             <span className={`h-2 w-2 rounded-full ${f.color} opacity-40`} />
             {f.label}
@@ -43,19 +59,21 @@ export default function ClusterFilters() {
         )
       )}
 
-      {active.length > 0 && (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 shadow-sm">
-          Periodo Jun2026 — 15 días
-          <button className="-mr-0.5 ml-0.5 rounded-full p-0.5 transition-colors hover:bg-gray-100">
-            <X className="h-3 w-3 text-gray-400" />
-          </button>
-        </span>
+      {/* Limpiar filtros */}
+      {hasActiveFilters && (
+        <button
+          onClick={onClearAll}
+          className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Limpiar
+        </button>
       )}
 
-      <button className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700">
-        <Plus className="h-3 w-3" />
-        Agregar zona
-      </button>
+      {/* Periodo (informativo) */}
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 shadow-sm">
+        Periodo Jun2026 — 15 días
+      </span>
     </div>
   )
 }
