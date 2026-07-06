@@ -11,13 +11,17 @@ import { ServiceUnavailableError } from '../../utils/errors.js';
 const PUBLIC_SERVICE_RADIUS_KM = 2;
 const MAX_NEAREST_SERVICES_PER_ZONE = 3;
 
-// Small talk is not worth remembering: it fills the vector memory with "hola"
-// rows that pollute similarity retrieval.
+// Pure greetings/chit-chat: an optional salutation, an optional courtesy tail,
+// and nothing else. Anything with real content falls through to the full
+// analytical pipeline. Used to skip data/RAG context (a "hola" doesn't need 5
+// queries and must not show FUENTES) and to keep greetings out of the vector
+// memory, where they pollute similarity retrieval.
 const SMALL_TALK_PATTERN =
-  /^\s*(hola|buenas|buen[oa]s?\s+(d[ií]as|tardes|noches)|hey|hi|hello|gracias|ok|dale|chau|adi[oó]s)[\s!.,?]*$/i;
+  /^\s*(?:(?:hola|holis|buenas(?:\s+(?:d[ií]as|tardes|noches))?|buen\s+d[ií]a|hey|hi|hello)[\s,!.]*)?(?:(?:todo\s+bien|c[oó]mo\s+(?:est[aá]s|andas|va|anda\s+todo)|qu[eé]\s+tal|como\s+va|gracias|muchas\s+gracias|ok|dale|genial|perfecto|chau|adi[oó]s|hasta\s+luego|nos\s+vemos)[\s!.,?¿¡]*)?$/i;
 
 function isSmallTalk(prompt) {
-  return SMALL_TALK_PATTERN.test(prompt);
+  const text = String(prompt).trim();
+  return text.length > 0 && text.length <= 60 && SMALL_TALK_PATTERN.test(text);
 }
 
 // Body model (explicit per query) wins over the user's persisted preference;
@@ -134,6 +138,36 @@ export async function queryData(req, res, next) {
     }
 
     const resolvedModel = await resolveModel(model, req.user);
+
+    // Small-talk fast path: a greeting needs no data, no RAG and no FUENTES
+    // chips in the UI. Answering conversationally (system prompt SALUDO rule)
+    // also keeps the reply varied instead of a canned data-flavored line.
+    if (isSmallTalk(prompt)) {
+      try {
+        const response = await callOpenRouter(
+          `Consulta del usuario: "${prompt}"\nIdioma de respuesta: ${language || 'es'}\n(Es un saludo o charla: respondé según la regla de SALUDO, sin datos.)`,
+          resolvedModel
+        );
+        const parsedResponse = parseAgentResponse(response?.content);
+        if (!parsedResponse.respuesta) {
+          throw new Error('OpenRouter returned empty or invalid content');
+        }
+        return res.json({
+          respuesta_ia: parsedResponse.respuesta,
+          clusters_destacados: [],
+          datos_extra: {
+            regiones_riesgo: 0,
+            antenas_encontradas: 0,
+            chunks_contexto: 0,
+            equipamentos_publicos: 0,
+          },
+          fuentes: [],
+        });
+      } catch (aiError) {
+        logger.error({ err: aiError }, 'AI provider call failed');
+        throw new ServiceUnavailableError(`AI provider call failed: ${aiError.message}`);
+      }
+    }
 
     // Per-user memory (only when authenticated via optionalAuth). Failures
     // must never block the answer, so recall degrades to [].

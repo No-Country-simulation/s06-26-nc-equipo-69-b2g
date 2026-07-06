@@ -263,6 +263,7 @@ describe('POST /api/v1/datos — per-user model and memory', () => {
   const token = generateToken(USER);
 
   beforeEach(() => {
+    supabase.from = vi.fn(() => mockChain({ data: [], error: null }));
     supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
     callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
     recallRelevant.mockReset().mockResolvedValue([]);
@@ -332,6 +333,22 @@ describe('POST /api/v1/datos — per-user model and memory', () => {
       'Análisis.',
       expect.objectContaining({ clusters_destacados: ['SANTO_AMARO'] })
     );
+  });
+
+  it('answers small talk without hitting data tables and with empty fuentes', async () => {
+    supabase.from = vi.fn();
+    callOpenRouter.mockResolvedValue({
+      role: 'assistant',
+      content: '¡Hola Ale! Todo bien por acá. ¿Querés mirar alguna zona?\nCLUSTERS_DESTACADOS: []',
+    });
+
+    const res = await request.post('/api/v1/datos').send({ prompt: 'hola, todo bien?' });
+
+    expect(res.status).toBe(200);
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(res.body.fuentes).toEqual([]);
+    expect(res.body.clusters_destacados).toEqual([]);
+    expect(res.body.respuesta_ia).toContain('Todo bien');
   });
 
   it('does not persist small talk turns', async () => {
