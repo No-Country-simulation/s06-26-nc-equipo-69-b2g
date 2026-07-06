@@ -32,9 +32,16 @@ export async function callOpenRouter(userMessage) {
   });
 
   if (!response.ok) {
-    throw new Error(`OpenRouter error: ${response.status} ${response.statusText}`);
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `OpenRouter error: ${response.status} ${response.statusText} — ${body || '(sin cuerpo)'}`
+    );
   }
 
   const data = await response.json();
-  return data.choices[0].message;
+  const message = data?.choices?.[0]?.message;
+  if (!message) {
+    throw new Error(`OpenRouter returned no choices: ${JSON.stringify(data)}`);
+  }
+  return message;
 }

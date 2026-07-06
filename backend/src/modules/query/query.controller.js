@@ -2,6 +2,8 @@ import { callOpenRouter } from '../../ai/openrouter.service.js';
 import { embedText } from '../../ai/embeddings.service.js';
 import { parseAgentResponse } from '../../ai/responseParser.js';
 import { supabase } from '../../lib/supabase.js';
+import { logger } from '../../config/logger.js';
+import { ServiceUnavailableError } from '../../utils/errors.js';
 
 const PUBLIC_SERVICE_RADIUS_KM = 2;
 const MAX_NEAREST_SERVICES_PER_ZONE = 3;
@@ -100,54 +102,6 @@ function summarizeNearbyPublicServices(zones, services, antenas) {
         ? `\n- Servicios públicos cercanos (radio ${PUBLIC_SERVICE_RADIUS_KM} km por zona; usalos como contexto territorial, no como impacto sectorial medido): ${JSON.stringify(zoneSummaries)}`
         : '',
     totalNearby,
-  };
-}
-
-function deriveHighlightedZonesFromRisk(riesgo) {
-  if (!Array.isArray(riesgo)) return [];
-
-  return riesgo
-    .filter((zone) => typeof zone?.cluster === 'string' && zone.cluster.length > 0)
-    .map((zone, index) => ({
-      cluster: zone.cluster,
-      score: toNumber(zone.score_riesgo),
-      index,
-    }))
-    .sort((a, b) => {
-      if (a.score !== null && b.score !== null) return b.score - a.score;
-      if (a.score !== null) return -1;
-      if (b.score !== null) return 1;
-      return a.index - b.index;
-    })
-    .slice(0, 5)
-    .map((zone) => zone.cluster);
-}
-
-function formatZoneName(zone) {
-  return String(zone).replace(/_/g, ' ');
-}
-
-function buildStructuredFallbackAnswer({ riesgo, concentracao, antenas, publicServicesContext }) {
-  const highlightedZones = deriveHighlightedZonesFromRisk(riesgo);
-  const riskSummary = highlightedZones.length
-    ? `Zonas a priorizar según los datos de riesgo disponibles: ${highlightedZones
-        .map(formatZoneName)
-        .join(', ')}.`
-    : 'No hay una zona destacada con los datos de riesgo disponibles en esta consulta.';
-
-  const connectivitySummary =
-    (concentracao?.length ?? 0) > 0 || (antenas?.length ?? 0) > 0
-      ? 'Primero conviene revisar conectividad: cobertura, congestión, caídas y capacidad de antenas en las zonas consultadas.'
-      : 'Primero conviene revisar conectividad y validar cobertura, congestión y caídas con datos operativos actualizados.';
-
-  const publicServicesSummary =
-    publicServicesContext.totalNearby > 0
-      ? 'Además, los datos incluyen servicios públicos e instituciones cercanas; usalos como contexto territorial para coordinar acciones, sin asumir que por sí solos cambian los resultados de conectividad.'
-      : 'No se detectó contexto cercano de servicios públicos para esta consulta, así que las recomendaciones deben apoyarse principalmente en los indicadores de red y riesgo.';
-
-  return {
-    respuesta: `${connectivitySummary} ${riskSummary} ${publicServicesSummary}`,
-    clustersDestacados: highlightedZones,
   };
 }
 
@@ -269,6 +223,9 @@ DATOS ESTRUCTURADOS DE LAS ZONAS:
     }
     `.trim();
 
+    // Sin fallback: si el proveedor de IA falla, propagamos el error real para
+    // poder diagnosticarlo (logs + response), en vez de devolver una respuesta
+    // genérica que enmascara el problema.
     let respuesta;
     let clustersDestacados;
     try {
@@ -281,15 +238,9 @@ DATOS ESTRUCTURADOS DE LAS ZONAS:
 
       respuesta = parsedResponse.respuesta;
       clustersDestacados = parsedResponse.clustersDestacados;
-    } catch {
-      const fallback = buildStructuredFallbackAnswer({
-        riesgo,
-        concentracao,
-        antenas,
-        publicServicesContext,
-      });
-      respuesta = fallback.respuesta;
-      clustersDestacados = fallback.clustersDestacados;
+    } catch (aiError) {
+      logger.error({ err: aiError }, 'AI provider call failed');
+      throw new ServiceUnavailableError(`AI provider call failed: ${aiError.message}`);
     }
 
     // Flujo B (chat -> mapa): only clusters that exist in riesgo_regiao reach
