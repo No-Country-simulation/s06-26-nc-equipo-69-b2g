@@ -234,6 +234,84 @@ paths:
                               enum: [MADRUGADA, MANHA, TARDE, NOITE]
                               example: NOITE
 
+  /api/v1/mapa/equipamentos:
+    get:
+      tags:
+        - Mapa
+      summary: Equipamientos públicos para renderizar en el mapa
+      description: >
+        Devuelve instituciones y servicios públicos cercanos a Florianópolis como
+        GeoJSON FeatureCollection de puntos, listos para renderizar en Mapbox.
+        Las categorías permiten filtrar capas de salud, educación, asistencia y gobierno.
+      operationId: getMapaEquipamentos
+      parameters:
+        - in: query
+          name: categoria
+          required: false
+          schema:
+            type: string
+            enum: [salud, educacion, asistencia, gobierno]
+          description: Categoría de equipamiento público a filtrar.
+      responses:
+        '200':
+          description: FeatureCollection de puntos con equipamientos públicos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: FeatureCollection
+                  features:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          example: Feature
+                        geometry:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              example: Point
+                            coordinates:
+                              type: array
+                              items:
+                                type: number
+                              example: [-48.548, -27.602]
+                        properties:
+                          type: object
+                          properties:
+                            nome:
+                              type: string
+                              example: Escola Municipal Centro
+                            tipo:
+                              type: string
+                              example: school
+                            categoria:
+                              type: string
+                              enum: [salud, educacion, asistencia, gobierno]
+                              example: educacion
+                            source:
+                              type: string
+                              example: osm
+                            source_id:
+                              type: string
+                              example: way/456
+        '400':
+          description: Categoría inválida.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'categoria debe ser una de: salud, educacion, asistencia, gobierno'
+
   /api/v1/mapa/demografia:
     get:
       tags:
