@@ -3,6 +3,106 @@ import { embedText } from '../../ai/embeddings.service.js';
 import { parseAgentResponse } from '../../ai/responseParser.js';
 import { supabase } from '../../lib/supabase.js';
 
+const PUBLIC_SERVICE_RADIUS_KM = 2;
+const MAX_NEAREST_SERVICES_PER_ZONE = 3;
+
+function toNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function haversineKm(origin, target) {
+  const earthRadiusKm = 6371;
+  const toRadians = (degrees) => (degrees * Math.PI) / 180;
+  const dLat = toRadians(target.lat - origin.lat);
+  const dLon = toRadians(target.lon - origin.lon);
+  const lat1 = toRadians(origin.lat);
+  const lat2 = toRadians(target.lat);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getZonePoint(zone, antenas = []) {
+  const zoneLat = toNumber(
+    zone?.lat ?? zone?.latitude ?? zone?.centroide_lat ?? zone?.centroid_lat
+  );
+  const zoneLon = toNumber(
+    zone?.lon ?? zone?.lng ?? zone?.longitude ?? zone?.centroide_lon ?? zone?.centroid_lon
+  );
+
+  if (zoneLat !== null && zoneLon !== null) return { lat: zoneLat, lon: zoneLon };
+
+  const zoneAntennas = antenas
+    .filter((antena) => antena.cluster === zone?.cluster)
+    .map((antena) => ({ lat: toNumber(antena.lat), lon: toNumber(antena.lon) }))
+    .filter((point) => point.lat !== null && point.lon !== null);
+
+  if (zoneAntennas.length === 0) return null;
+
+  return {
+    lat: zoneAntennas.reduce((sum, point) => sum + point.lat, 0) / zoneAntennas.length,
+    lon: zoneAntennas.reduce((sum, point) => sum + point.lon, 0) / zoneAntennas.length,
+  };
+}
+
+function summarizeNearbyPublicServices(zones, services, antenas) {
+  const validServices = (services ?? [])
+    .map((service) => ({ ...service, lat: toNumber(service.lat), lon: toNumber(service.lon) }))
+    .filter((service) => service.lat !== null && service.lon !== null);
+
+  if (!Array.isArray(zones) || zones.length === 0 || validServices.length === 0) {
+    return { summaryText: '', totalNearby: 0 };
+  }
+
+  const zoneSummaries = zones
+    .map((zone) => {
+      const point = getZonePoint(zone, antenas);
+      if (!point) return null;
+
+      const nearby = validServices
+        .map((service) => ({
+          ...service,
+          distanceKm: haversineKm(point, { lat: service.lat, lon: service.lon }),
+        }))
+        .filter((service) => service.distanceKm <= PUBLIC_SERVICE_RADIUS_KM)
+        .sort((a, b) => a.distanceKm - b.distanceKm);
+
+      if (nearby.length === 0) return null;
+
+      const countsByCategory = nearby.reduce((counts, service) => {
+        const category = service.categoria || 'otro';
+        counts[category] = (counts[category] ?? 0) + 1;
+        return counts;
+      }, {});
+
+      const examples = nearby.slice(0, MAX_NEAREST_SERVICES_PER_ZONE).map((service) => ({
+        nome: service.nome || service.tipo || 'servicio público',
+        tipo: service.tipo || 'desconocido',
+        categoria: service.categoria || 'otro',
+        distancia_km: Number(service.distanceKm.toFixed(2)),
+      }));
+
+      return {
+        zona: zone.cluster,
+        total: nearby.length,
+        categorias: countsByCategory,
+        ejemplos_cercanos: examples,
+      };
+    })
+    .filter(Boolean);
+
+  const totalNearby = zoneSummaries.reduce((sum, zone) => sum + zone.total, 0);
+
+  return {
+    summaryText:
+      zoneSummaries.length > 0
+        ? `\n- Servicios públicos cercanos (radio ${PUBLIC_SERVICE_RADIUS_KM} km por zona; usalos como contexto territorial, no como impacto sectorial medido): ${JSON.stringify(zoneSummaries)}`
+        : '',
+    totalNearby,
+  };
+}
+
 export async function queryData(req, res, next) {
   try {
     const { prompt, region, regions, ecgi, indicator, language } = req.body;
@@ -40,10 +140,31 @@ export async function queryData(req, res, next) {
     const { data: antenas, error: antenasError } = await antenasQuery.limit(50);
     if (antenasError) throw antenasError;
 
-    // 1b) Perfil demográfico por zona (assinantes agregada server-side).
+    // 1a) Equipamientos públicos cercanos para orientar recomendaciones de política.
+    //     Si la tabla aún no existe o falla la consulta, el endpoint debe seguir funcionando.
+    let equipamentosPublicos = [];
+    try {
+      const { data: equipamentosData, error: equipamentosError } = await supabase
+        .from('equipamentos_publicos')
+        .select('nome,tipo,categoria,lat,lon')
+        .limit(5000);
+      if (!equipamentosError && Array.isArray(equipamentosData))
+        equipamentosPublicos = equipamentosData;
+    } catch {
+      equipamentosPublicos = [];
+    }
+
+    const publicServicesContext = summarizeNearbyPublicServices(
+      riesgo ?? [],
+      equipamentosPublicos,
+      antenas ?? []
+    );
+
+    // 1c) Perfil demográfico por zona (assinantes agregada server-side).
     //     Solo con zonas seleccionadas: el agregado completo es innecesario para el prompt.
     let demografia = [];
-    const demographicRegions = selectedRegions.length > 0 ? selectedRegions : region ? [region] : [];
+    const demographicRegions =
+      selectedRegions.length > 0 ? selectedRegions : region ? [region] : [];
     if (demographicRegions.length > 0) {
       demografia = (
         await Promise.all(
@@ -92,6 +213,8 @@ DATOS ESTRUCTURADOS DE LAS ZONAS:
 - Riesgo por zona (riesgo_regiao): ${JSON.stringify(riesgo)}
 - Concentración / calidad de red (tensor_concentracao): ${JSON.stringify(concentracao)}
 - Antenas / cobertura (antenas_flp): ${JSON.stringify(antenas)}${
+      publicServicesContext.summaryText
+    }${
       demografia.length > 0
         ? `\n- Perfil demográfico por zona (assinantes agregado): ${JSON.stringify(demografia)}`
         : ''
@@ -119,11 +242,13 @@ DATOS ESTRUCTURADOS DE LAS ZONAS:
         regiones_riesgo: riesgo?.length ?? 0,
         antenas_encontradas: antenas?.length ?? 0,
         chunks_contexto: ragChunks.length,
+        equipamentos_publicos: publicServicesContext.totalNearby,
       },
       fuentes: [
         'riesgo_regiao',
         'tensor_concentracao',
         'antenas_flp',
+        ...(publicServicesContext.totalNearby > 0 ? ['equipamentos_publicos'] : []),
         ...(demografia.length > 0 ? ['assinantes_agregado'] : []),
         ...new Set(ragChunks.map((c) => c.fuente)),
       ],

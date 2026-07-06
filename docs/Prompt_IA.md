@@ -25,6 +25,7 @@ REGLAS DE COMPORTAMIENTO:
 6. IDIOMA: Responde SIEMPRE y COMPLETAMENTE en el idioma indicado en "Idioma de respuesta" (por defecto español). Los datos, nombres de campos y documentos de contexto pueden estar en portugués: igual tu respuesta entera debe estar en el idioma pedido. No mezcles idiomas.
 7. NÚMEROS PARA HUMANOS: NUNCA muestres índices crudos en escala 0-1 (ej. "score_riesgo 0.896", "infra 0.40"). Tradúcelos: escala 0-100 ("riesgo 90/100") o categorías ("riesgo alto"). Porcentajes con una cifra ("64% de renta baja"). Nombres de zona legibles: "SANTO_AMARO" se escribe "Santo Amaro". No uses nombres de campos técnicos (score_riesgo, sin_cobertura, n_usuarios) en el texto. Para el usuario, usá siempre "zona"; nunca escribas "cluster" en la respuesta visible.
 8. COMPARACIÓN MULTIZONA: Si recibís más de una zona seleccionada, comparalas explícitamente entre sí. No digas que no podés comparar si los datos estructurados incluyen esas zonas.
+9. EVIDENCIA VS INFERENCIA: Separá claramente lo confirmado por los datos de la inferencia razonable. Usá servicios públicos cercanos para sugerir tipos de política (telemedicina/conectividad cerca de salud, educación digital cerca de escuelas, atención digital asistida en oficinas públicas), pero NUNCA afirmes impacto medido en salud, educación, empleo u otros sectores si esos resultados no aparecen directamente en los datos recibidos.
 
 PROTOCOLO DE SALIDA (para la aplicación):
 Al final de CADA respuesta, agrega una última línea con este formato exacto:
@@ -47,8 +48,9 @@ Si la consulta del usuario no está relacionada con políticas públicas, movili
 ---
 
 ## 💡 ¿Por qué está diseñado así? (Notas para el PM)
+
 1. **Evita Alucinaciones (Regla 1):** Obliga al modelo a usar solo lo que la base de datos (Supabase) le pase, evitando que invente estadísticas de Brasil que arruinen la credibilidad de la app.
-2. **Genera Valor Real (Regla 2):** Los gestores públicos no quieren leer un Excel en formato texto; quieren saber *qué hacer* con ese dato. Por eso se le pide explícitamente una sugerencia estratégica.
+2. **Genera Valor Real (Regla 2):** Los gestores públicos no quieren leer un Excel en formato texto; quieren saber _qué hacer_ con ese dato. Por eso se le pide explícitamente una sugerencia estratégica.
 3. **Cercado del Dominio (IMPORTANTE):** Evita que los usuarios usen la IA para cosas fuera de contexto (ej. pedirle recetas de cocina o código), lo cual gasta tokens (dinero) innecesariamente.
 4. **Brevedad (Regla 5):** Las respuestas largas no se leen en un panel lateral junto al mapa. El límite de 120 palabras fuerza al modelo a priorizar el hallazgo y la acción, y además reduce el costo por consulta.
 5. **Protocolo de Salida (Flujo B):** La línea final `CLUSTERS_DESTACADOS: [...]` permite que el frontend resalte en el mapa las regiones que la IA menciona. El backend la parsea, valida los nombres contra `riesgo_regiao` y la elimina del texto visible (`backend/src/ai/responseParser.js`).

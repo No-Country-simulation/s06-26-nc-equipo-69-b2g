@@ -103,7 +103,10 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
     const chains = {};
     supabase.from = vi.fn((table) => {
       chains[table] = mockChain({
-        data: table === 'riesgo_regiao' ? [{ cluster: 'SANTO_AMARO' }, { cluster: 'CBD_BEIRAMAR' }] : [],
+        data:
+          table === 'riesgo_regiao'
+            ? [{ cluster: 'SANTO_AMARO' }, { cluster: 'CBD_BEIRAMAR' }]
+            : [],
         error: null,
       });
       return chains[table];
@@ -116,7 +119,10 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
       .send({ prompt: 'comparar zonas', regions: ['SANTO_AMARO', 'CBD_BEIRAMAR'] });
 
     expect(res.status).toBe(200);
-    expect(chains.riesgo_regiao.in).toHaveBeenCalledWith('cluster', ['SANTO_AMARO', 'CBD_BEIRAMAR']);
+    expect(chains.riesgo_regiao.in).toHaveBeenCalledWith('cluster', [
+      'SANTO_AMARO',
+      'CBD_BEIRAMAR',
+    ]);
     expect(chains.tensor_concentracao.in).toHaveBeenCalledWith('cluster', [
       'SANTO_AMARO',
       'CBD_BEIRAMAR',
@@ -153,6 +159,70 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
     const userMessage = callOpenRouter.mock.lastCall[0];
     expect(userMessage).toContain('Perfil demográfico');
     expect(userMessage).toContain('3236');
+  });
+
+  it('injects nearby public services context when equipamentos_publicos returns services', async () => {
+    supabase.from = vi.fn((table) => {
+      if (table === 'riesgo_regiao') {
+        return mockChain({
+          data: [{ cluster: 'SANTO_AMARO', lat: -27.6, lon: -48.55 }],
+          error: null,
+        });
+      }
+      if (table === 'equipamentos_publicos') {
+        return mockChain({
+          data: [
+            {
+              nome: 'Unidade de Saúde Santo Amaro',
+              tipo: 'clinic',
+              categoria: 'salud',
+              lat: -27.601,
+              lon: -48.551,
+            },
+          ],
+          error: null,
+        });
+      }
+      return mockChain({ data: [], error: null });
+    });
+    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
+
+    const res = await request
+      .post('/api/v1/datos')
+      .send({ prompt: 'que politica priorizar', region: 'SANTO_AMARO' });
+
+    expect(res.status).toBe(200);
+    const userMessage = callOpenRouter.mock.lastCall[0];
+    expect(userMessage).toContain('Servicios públicos cercanos');
+    expect(userMessage).toContain('Unidade de Saúde Santo Amaro');
+    expect(res.body.datos_extra.equipamentos_publicos).toBe(1);
+    expect(res.body.fuentes).toContain('equipamentos_publicos');
+  });
+
+  it('does not fail when equipamentos_publicos query errors', async () => {
+    supabase.from = vi.fn((table) => {
+      if (table === 'riesgo_regiao') {
+        return mockChain({
+          data: [{ cluster: 'SANTO_AMARO', lat: -27.6, lon: -48.55 }],
+          error: null,
+        });
+      }
+      if (table === 'equipamentos_publicos') {
+        return mockChain({ data: null, error: { message: 'relation does not exist' } });
+      }
+      return mockChain({ data: [], error: null });
+    });
+    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
+
+    const res = await request
+      .post('/api/v1/datos')
+      .send({ prompt: 'panorama', region: 'SANTO_AMARO' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.datos_extra.equipamentos_publicos).toBe(0);
+    expect(res.body.fuentes).not.toContain('equipamentos_publicos');
   });
 
   it('does not call the demografia RPC when region is absent', async () => {
