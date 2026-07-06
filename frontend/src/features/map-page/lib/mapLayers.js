@@ -545,6 +545,65 @@ export async function addClustersSourceAndLayer(map) {
   })
 }
 
+// Paint overrides that keep the data layers readable on the dark 3D dusk
+// basemap: the default cyan corridors and muted risk fills sink into it.
+// Layers are recreated with their light-style defaults on every style switch,
+// so only the dusk theme needs explicit values; guards make it safe for
+// lazily-added layers (corredores).
+const DUSK_LAYER_PAINT = {
+  'corredores-layer': {
+    'line-color': '#67e8f9',
+    'line-opacity': 0.85,
+    'line-width': ['interpolate', ['linear'], ['get', 'n_viagens'], 0, 1.2, 28288, 4],
+  },
+  'clusters-layer': {
+    'circle-opacity': 0.55,
+    'circle-color': [
+      'match',
+      ['get', 'nivel_riesgo'],
+      'ALTO', '#ef4444',
+      'MEDIO', '#fbbf24',
+      'BAJO', '#34d399',
+      '#cbd5e1',
+    ],
+    'circle-stroke-color': [
+      'match',
+      ['get', 'nivel_riesgo'],
+      'ALTO', '#fca5a5',
+      'MEDIO', '#fde047',
+      'BAJO', '#6ee7b7',
+      '#e5e7eb',
+    ],
+    'circle-stroke-width': 2.5,
+  },
+  'clusters-outline': {
+    'circle-stroke-color': [
+      'match',
+      ['get', 'nivel_riesgo'],
+      'ALTO', '#f87171',
+      'MEDIO', '#fde047',
+      'BAJO', '#6ee7b7',
+      '#e5e7eb',
+    ],
+    'circle-opacity': 0.9,
+  },
+  'clusters-labels': {
+    'text-color': '#f9fafb',
+    'text-halo-color': 'rgba(15, 23, 42, 0.85)',
+    'text-halo-width': 1.4,
+  },
+}
+
+export function applyDataLayerTheme(map, theme) {
+  if (theme !== 'dusk') return
+  for (const [layerId, props] of Object.entries(DUSK_LAYER_PAINT)) {
+    if (!map.getLayer(layerId)) continue
+    for (const [prop, value] of Object.entries(props)) {
+      map.setPaintProperty(layerId, prop, value)
+    }
+  }
+}
+
 export async function addAllSourcesAndLayers(map, activeFilters = [], periodo = 'MANHA') {
   await addConcentracionSourceAndLayer(map, periodo)
   await addAntenasLayer(map)

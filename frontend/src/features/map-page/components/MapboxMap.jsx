@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getClusters, getConcentracao, getDemografia } from '../api/mapaService'
-import { addAllSourcesAndLayers, addMapInteractions, ensureCorredoresLoaded, updateCardHighlight, updateIaHighlight, updateLayerVisibility } from '../lib/mapLayers'
+import { addAllSourcesAndLayers, addMapInteractions, applyDataLayerTheme, ensureCorredoresLoaded, updateCardHighlight, updateIaHighlight, updateLayerVisibility } from '../lib/mapLayers'
 import useMapPageStore from '../store/useMapPageStore'
 
 const token = import.meta.env.VITE_API_KEY_MAPBOX
@@ -16,9 +16,17 @@ const MAP_STYLES = {
   },
   dusk3d: {
     style: 'mapbox://styles/mapbox/standard',
-    config: { basemap: { lightPreset: 'dusk' } },
     camera: { pitch: 55, bearing: -17, duration: 1600 },
   },
+}
+
+// In 3D mode the basemap lighting follows the selected data period, so the
+// city looks like the time window being analyzed.
+const LIGHT_PRESET_BY_PERIODO = {
+  MADRUGADA: 'night',
+  MANHA: 'dawn',
+  TARDE: 'day',
+  NOITE: 'dusk',
 }
 
 export default function MapboxMap({ selectedPeriodo }) {
@@ -191,8 +199,12 @@ export default function MapboxMap({ selectedPeriodo }) {
 
   useEffect(() => {
     if (!mapRef.current || !loaded) return
-    updateVisibility(mapRef.current)
-    ensureCorredoresLoaded(mapRef.current, activeFilters)
+    const map = mapRef.current
+    updateVisibility(map)
+    // Corredores load lazily: re-apply the dusk paint if they appear while 3D.
+    ensureCorredoresLoaded(map, activeFilters).then(() => {
+      applyDataLayerTheme(map, appliedStyleModeRef.current === 'dusk3d' ? 'dusk' : 'light')
+    })
   }, [activeFilters, loaded])
 
   // Base style switch (2D light <-> 3D dusk). setStyle drops every custom
@@ -206,7 +218,17 @@ export default function MapboxMap({ selectedPeriodo }) {
     appliedStyleModeRef.current = styleMode
 
     const def = MAP_STYLES[styleMode]
-    map.setStyle(def.style, def.config ? { config: def.config } : undefined)
+    const styleOptions =
+      styleMode === 'dusk3d'
+        ? {
+            config: {
+              basemap: {
+                lightPreset: LIGHT_PRESET_BY_PERIODO[selectedPeriodoRef.current] ?? 'dusk',
+              },
+            },
+          }
+        : undefined
+    map.setStyle(def.style, styleOptions)
     map.once('style.load', async () => {
       const store = getStoreState()
       try {
@@ -215,6 +237,7 @@ export default function MapboxMap({ selectedPeriodo }) {
         console.warn('Could not reload map layers after style change:', err)
         return
       }
+      applyDataLayerTheme(map, styleMode === 'dusk3d' ? 'dusk' : 'light')
       updateLayerVisibility(map, store.activeFilters)
       updateIaHighlight(map, store.highlightedClusters)
       const cardOnly = store.openZones
@@ -225,6 +248,17 @@ export default function MapboxMap({ selectedPeriodo }) {
     map.easeTo(def.camera)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [styleMode, loaded])
+
+  // 3D lighting follows the analyzed period (madrugada -> night, etc.).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !loaded || styleMode !== 'dusk3d') return
+    try {
+      map.setConfigProperty('basemap', 'lightPreset', LIGHT_PRESET_BY_PERIODO[selectedPeriodo] ?? 'dusk')
+    } catch (err) {
+      console.warn('Could not update basemap light preset:', err)
+    }
+  }, [selectedPeriodo, styleMode, loaded])
 
   useEffect(() => {
     if (!mapRef.current || !loaded) return
