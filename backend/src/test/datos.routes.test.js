@@ -18,6 +18,7 @@ function mockChain(result) {
   return {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue(result),
   };
@@ -96,6 +97,35 @@ describe('POST /api/v1/datos — antenna and demographic context', () => {
 
     expect(res.status).toBe(200);
     expect(chains.tensor_concentracao.eq).toHaveBeenCalledWith('ecgi', '7240501005373318');
+  });
+
+  it('filters zone tables with regions[] and asks the model to compare all selected zones', async () => {
+    const chains = {};
+    supabase.from = vi.fn((table) => {
+      chains[table] = mockChain({
+        data: table === 'riesgo_regiao' ? [{ cluster: 'SANTO_AMARO' }, { cluster: 'CBD_BEIRAMAR' }] : [],
+        error: null,
+      });
+      return chains[table];
+    });
+    supabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    callOpenRouter.mockResolvedValue({ role: 'assistant', content: 'ok' });
+
+    const res = await request
+      .post('/api/v1/datos')
+      .send({ prompt: 'comparar zonas', regions: ['SANTO_AMARO', 'CBD_BEIRAMAR'] });
+
+    expect(res.status).toBe(200);
+    expect(chains.riesgo_regiao.in).toHaveBeenCalledWith('cluster', ['SANTO_AMARO', 'CBD_BEIRAMAR']);
+    expect(chains.tensor_concentracao.in).toHaveBeenCalledWith('cluster', [
+      'SANTO_AMARO',
+      'CBD_BEIRAMAR',
+    ]);
+    expect(chains.antenas_flp.in).toHaveBeenCalledWith('cluster', ['SANTO_AMARO', 'CBD_BEIRAMAR']);
+    const userMessage = callOpenRouter.mock.lastCall[0];
+    expect(userMessage).toContain('SANTO_AMARO');
+    expect(userMessage).toContain('CBD_BEIRAMAR');
+    expect(userMessage).toContain('compará explícitamente todas las zonas seleccionadas');
   });
 
   it('injects the demographic profile into the LLM context when region is set', async () => {

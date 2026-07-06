@@ -5,16 +5,20 @@ import { supabase } from '../../lib/supabase.js';
 
 export async function queryData(req, res, next) {
   try {
-    const { prompt, region, ecgi, indicator, language } = req.body;
+    const { prompt, region, regions, ecgi, indicator, language } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'prompt is required' });
     }
 
+    const selectedRegions = Array.isArray(regions) ? [...new Set(regions.filter(Boolean))] : [];
+    const hasMultipleRegions = selectedRegions.length > 1;
+
     // 1) Datos estructurados agregados (tablas con public read).
     //    riesgo_regiao es la salida principal del producto (score por cluster).
     let riesgoQuery = supabase.from('riesgo_regiao').select('*');
-    if (region) riesgoQuery = riesgoQuery.eq('cluster', region);
+    if (selectedRegions.length > 0) riesgoQuery = riesgoQuery.in('cluster', selectedRegions);
+    else if (region) riesgoQuery = riesgoQuery.eq('cluster', region);
     const { data: riesgo, error: riesgoError } = await riesgoQuery.limit(50);
     if (riesgoError) throw riesgoError;
 
@@ -25,23 +29,33 @@ export async function queryData(req, res, next) {
       );
     // ecgi (click en antena) es más específico que region (click en cluster).
     if (ecgi) concQuery = concQuery.eq('ecgi', ecgi);
+    else if (selectedRegions.length > 0) concQuery = concQuery.in('cluster', selectedRegions);
     else if (region) concQuery = concQuery.eq('cluster', region);
     const { data: concentracao, error: concError } = await concQuery.limit(50);
     if (concError) throw concError;
 
     let antenasQuery = supabase.from('antenas_flp').select('ecgi, cluster, municipio, lat, lon');
-    if (region) antenasQuery = antenasQuery.eq('cluster', region);
+    if (selectedRegions.length > 0) antenasQuery = antenasQuery.in('cluster', selectedRegions);
+    else if (region) antenasQuery = antenasQuery.eq('cluster', region);
     const { data: antenas, error: antenasError } = await antenasQuery.limit(50);
     if (antenasError) throw antenasError;
 
-    // 1b) Perfil demográfico del cluster (assinantes agregada server-side).
-    //     Solo con region: el agregado completo es innecesario para el prompt.
-    let demografia = null;
-    if (region) {
-      const { data: perfil, error: perfilError } = await supabase.rpc('mapa_demografia', {
-        p_cluster: region,
-      });
-      if (!perfilError && Array.isArray(perfil) && perfil.length > 0) demografia = perfil[0];
+    // 1b) Perfil demográfico por zona (assinantes agregada server-side).
+    //     Solo con zonas seleccionadas: el agregado completo es innecesario para el prompt.
+    let demografia = [];
+    const demographicRegions = selectedRegions.length > 0 ? selectedRegions : region ? [region] : [];
+    if (demographicRegions.length > 0) {
+      demografia = (
+        await Promise.all(
+          demographicRegions.map(async (cluster) => {
+            const { data: perfil, error: perfilError } = await supabase.rpc('mapa_demografia', {
+              p_cluster: cluster,
+            });
+            if (!perfilError && Array.isArray(perfil) && perfil.length > 0) return perfil[0];
+            return null;
+          })
+        )
+      ).filter(Boolean);
     }
 
     // 2) RAG: recuperar conocimiento de dominio por similitud semántica.
@@ -63,20 +77,23 @@ export async function queryData(req, res, next) {
 
     const userMessage = `
 Consulta del usuario: "${prompt}"
-Región: ${region || 'Todas'}
+Zona principal: ${region || selectedRegions[0] || 'Todas'}
+Zonas seleccionadas: ${selectedRegions.length > 0 ? selectedRegions.join(', ') : region || 'Todas'}
 Antena (ecgi): ${ecgi || 'Todas'}
 Indicador: ${indicator || 'General'}
 Idioma de respuesta: ${language || 'es'}
+Estilo de salida: usá siempre "zona" para el usuario; no uses la palabra "cluster" en la respuesta visible.
+${hasMultipleRegions ? 'Instrucción: compará explícitamente todas las zonas seleccionadas usando los datos suministrados para cada una.' : ''}
 
 CONOCIMIENTO DE DOMINIO (usá esto para interpretar y explicar; no inventes fuera de esto):
 ${contexto || '(sin contexto recuperado)'}
 
-DATOS ESTRUCTURADOS DE LA REGIÓN:
-- Riesgo por región (riesgo_regiao): ${JSON.stringify(riesgo)}
+DATOS ESTRUCTURADOS DE LAS ZONAS:
+- Riesgo por zona (riesgo_regiao): ${JSON.stringify(riesgo)}
 - Concentración / calidad de red (tensor_concentracao): ${JSON.stringify(concentracao)}
 - Antenas / cobertura (antenas_flp): ${JSON.stringify(antenas)}${
-      demografia
-        ? `\n- Perfil demográfico del cluster (assinantes agregado): ${JSON.stringify(demografia)}`
+      demografia.length > 0
+        ? `\n- Perfil demográfico por zona (assinantes agregado): ${JSON.stringify(demografia)}`
         : ''
     }
     `.trim();
@@ -87,7 +104,7 @@ DATOS ESTRUCTURADOS DE LA REGIÓN:
     // Flujo B (chat -> mapa): only clusters that exist in riesgo_regiao reach
     // the frontend, so a hallucinated name never breaks the map highlight.
     let validClusters = new Set((riesgo ?? []).map((r) => r.cluster));
-    if (region && clustersDestacados.length > 0) {
+    if ((region || selectedRegions.length > 0) && clustersDestacados.length > 0) {
       const { data: allClusters } = await supabase
         .from('riesgo_regiao')
         .select('cluster')
@@ -107,7 +124,7 @@ DATOS ESTRUCTURADOS DE LA REGIÓN:
         'riesgo_regiao',
         'tensor_concentracao',
         'antenas_flp',
-        ...(demografia ? ['assinantes_agregado'] : []),
+        ...(demografia.length > 0 ? ['assinantes_agregado'] : []),
         ...new Set(ragChunks.map((c) => c.fuente)),
       ],
     });
