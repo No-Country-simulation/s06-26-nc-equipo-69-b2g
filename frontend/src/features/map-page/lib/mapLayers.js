@@ -1,9 +1,10 @@
-import { antenas as mockAntenas } from '../data/mockAntenas'
+import { getConcentracao, getClusters, getOD } from '../api/mapaService'
+import { buildClusterDetail } from './clusterDetail'
 
 export const filterLayerMap = {
   concentracion: ['concentracion-heatmap-layer'],
   antenas: ['antenas-layer'],
-  clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura'],
+  clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura', 'clusters-labels'],
   corredores: ['corredores-layer'],
 }
 
@@ -19,9 +20,7 @@ export function updateLayerVisibility(map, activeFilters) {
 }
 
 export async function addConcentracionSourceAndLayer(map, periodo = 'MANHA') {
-  const apiUrl = import.meta.env.VITE_API_URL || ''
-  const res = await fetch(`${apiUrl}/api/v1/mapa/concentracao?periodo=${periodo}`)
-  const geojson = await res.json()
+  const geojson = await getConcentracao(periodo)
 
   map.addSource('concentracion-heatmap', {
     type: 'geojson',
@@ -40,8 +39,23 @@ export async function addConcentracionSourceAndLayer(map, periodo = 'MANHA') {
         0, 0,
         62834, 1,
       ],
-      'heatmap-intensity': 1,
-      'heatmap-radius': 30,
+      // Radius and intensity must grow with zoom, otherwise the heatmap
+      // visually dissolves as points spread apart on screen
+      'heatmap-intensity': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        8, 0.8,
+        13, 2,
+      ],
+      'heatmap-radius': [
+        'interpolate',
+        ['exponential', 1.6],
+        ['zoom'],
+        8, 14,
+        11, 34,
+        14, 80,
+      ],
       'heatmap-color': [
         'interpolate',
         ['linear'],
@@ -57,30 +71,112 @@ export async function addConcentracionSourceAndLayer(map, periodo = 'MANHA') {
   })
 }
 
-export function addAntenasSourceAndLayer(map) {
-  // Convert mockAntenas (array) into a GeoJSON FeatureCollection
-  map.addSource('antenas', {
-    type: 'geojson',
-    data: {
-      type: 'FeatureCollection',
-      features: mockAntenas.map((a) => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [a.lng, a.lat] },
-        properties: { ...a },
-      })),
-    },
+const ANTENA_ICON_ID = 'antena-icon'
+
+// Classic broadcast icon: mast + radio waves, white halo for map contrast
+const ANTENA_ICON_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">
+  <g stroke="#ffffff" stroke-width="10" stroke-linecap="round" fill="none" opacity="0.9">
+    <path d="M28 50 V27"/>
+    <path d="M18 21 a14 14 0 0 1 20 0"/>
+    <path d="M11 14 a24 24 0 0 1 34 0"/>
+  </g>
+  <g stroke="#0f172a" stroke-width="4.5" stroke-linecap="round" fill="none">
+    <path d="M28 50 V27"/>
+    <path d="M18 21 a14 14 0 0 1 20 0"/>
+    <path d="M11 14 a24 24 0 0 1 34 0"/>
+  </g>
+  <circle cx="28" cy="27" r="5" fill="#0f172a" stroke="#ffffff" stroke-width="2.5"/>
+</svg>`
+
+function loadAntenaIcon(map) {
+  if (map.hasImage(ANTENA_ICON_ID)) return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const img = new Image(56, 56)
+    img.onload = () => {
+      if (!map.hasImage(ANTENA_ICON_ID)) {
+        map.addImage(ANTENA_ICON_ID, img, { pixelRatio: 2 })
+      }
+      resolve()
+    }
+    img.onerror = reject
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(ANTENA_ICON_SVG)}`
   })
+}
+
+/**
+ * Each feature of /mapa/concentracao is one antenna (unique ecgi), so the
+ * antenna layer reuses the concentracion source instead of a separate dataset.
+ */
+export async function addAntenasLayer(map) {
+  await loadAntenaIcon(map)
 
   map.addLayer({
     id: 'antenas-layer',
-    type: 'circle',
-    source: 'antenas',
-    paint: {
-      'circle-radius': 8,
-      'circle-color': '#1a1a1a',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff',
+    type: 'symbol',
+    source: 'concentracion-heatmap',
+    layout: {
+      'icon-image': ANTENA_ICON_ID,
+      'icon-size': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        9, 0.7,
+        13, 1.15,
+      ],
+      'icon-allow-overlap': true,
     },
+  })
+}
+
+/**
+ * Hover tooltip with network quality per antenna, and click-to-chat context
+ * (ecgi). Receives the mapboxgl module because it is dynamically imported
+ * by the map component.
+ */
+export function addAntenaInteractions(map, mapboxgl, getStoreState) {
+  const popup = new mapboxgl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    offset: 14,
+    className: 'antena-tooltip',
+  })
+
+  map.on('mousemove', 'antenas-layer', (e) => {
+    const feature = e.features?.[0]
+    if (!feature) return
+
+    map.getCanvas().style.cursor = 'pointer'
+
+    const { cluster, municipio, n_usuarios, congestion_media, drop_pct_media } = feature.properties
+    popup
+      .setLngLat(feature.geometry.coordinates)
+      .setHTML(`
+        <div style="font-family: inherit; font-size: 11px; line-height: 1.5; min-width: 150px;">
+          <strong style="font-size: 12px;">${(cluster ?? '').replace(/_/g, ' ')}</strong>
+          <span style="color: #6b7280;"> · ${municipio ?? ''}</span>
+          <div style="margin-top: 4px; display: grid; grid-template-columns: auto auto; gap: 0 12px;">
+            <span style="color:#6b7280">Usuarios</span><span style="text-align:right; font-weight:600">${Number(n_usuarios ?? 0).toLocaleString('es')}</span>
+            <span style="color:#6b7280">Congestión</span><span style="text-align:right; font-weight:600">${((congestion_media ?? 0) * 100).toFixed(1)}%</span>
+            <span style="color:#6b7280">Drop</span><span style="text-align:right; font-weight:600">${((drop_pct_media ?? 0) * 100).toFixed(2)}%</span>
+          </div>
+        </div>
+      `)
+      .addTo(map)
+  })
+
+  map.on('mouseleave', 'antenas-layer', () => {
+    map.getCanvas().style.cursor = ''
+    popup.remove()
+  })
+
+  map.on('click', 'antenas-layer', (e) => {
+    const ecgi = e.features?.[0]?.properties?.ecgi
+    if (!ecgi) return
+
+    getStoreState().setChatContext({ ecgi })
+    getStoreState().openLeftSidebar()
   })
 }
 
@@ -108,16 +204,10 @@ function buildArcCoordinates(start, end) {
   return points
 }
 
-let odGeojsonCache = null
-
 export async function addCorredoresSourceAndLayer(map) {
-  if (!odGeojsonCache) {
-    const apiUrl = import.meta.env.VITE_API_URL || ''
-    const res = await fetch(`${apiUrl}/api/v1/mapa/od`)
-    odGeojsonCache = await res.json()
-  }
+  const odGeojson = await getOD()
 
-  const sorted = [...odGeojsonCache.features]
+  const sorted = [...odGeojson.features]
     .sort((a, b) => (b.properties?.n_viagens ?? 0) - (a.properties?.n_viagens ?? 0))
 
   const topFlows = sorted.slice(0, 40)
@@ -165,10 +255,23 @@ export async function addCorredoresSourceAndLayer(map) {
   })
 }
 
+// Bubble radius driven by score_riesgo, scaled down at low zoom so the
+// metro-wide view doesn't collapse into overlapping blobs downtown
+const CLUSTER_RADIUS = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  9, ['interpolate', ['linear'], ['get', 'score_riesgo'], 0, 7, 1, 20],
+  13, ['interpolate', ['linear'], ['get', 'score_riesgo'], 0, 16, 1, 48],
+]
+
 export async function addClustersSourceAndLayer(map) {
-  const apiUrl = import.meta.env.VITE_API_URL || ''
-  const res = await fetch(`${apiUrl}/api/v1/mapa/clusters`)
-  const geojson = await res.json()
+  const geojson = await getClusters()
+
+  // Human-readable label (Mapbox expressions cannot replace substrings)
+  geojson.features.forEach((f) => {
+    f.properties.cluster_label = (f.properties.cluster ?? '').replace(/_/g, ' ')
+  })
 
   map.addSource('clusters', {
     type: 'geojson',
@@ -180,13 +283,7 @@ export async function addClustersSourceAndLayer(map) {
     type: 'circle',
     source: 'clusters',
     paint: {
-      'circle-radius': [
-        'interpolate',
-        ['linear'],
-        ['get', 'score_riesgo'],
-        0, 12,
-        1, 40,
-      ],
+      'circle-radius': CLUSTER_RADIUS,
       'circle-color': [
         'match',
         ['get', 'nivel_riesgo'],
@@ -214,13 +311,7 @@ export async function addClustersSourceAndLayer(map) {
     type: 'circle',
     source: 'clusters',
     paint: {
-      'circle-radius': [
-        'interpolate',
-        ['linear'],
-        ['get', 'score_riesgo'],
-        0, 12,
-        1, 40,
-      ],
+      'circle-radius': CLUSTER_RADIUS,
       'circle-color': 'transparent',
       'circle-stroke-color': [
         'match',
@@ -249,11 +340,31 @@ export async function addClustersSourceAndLayer(map) {
       'circle-opacity': 0.9,
     },
   })
+
+  map.addLayer({
+    id: 'clusters-labels',
+    type: 'symbol',
+    source: 'clusters',
+    minzoom: 9.5,
+    layout: {
+      'text-field': ['get', 'cluster_label'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 9.5, 9, 13, 12],
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-offset': [0, 1.2],
+      'text-anchor': 'top',
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': '#374151',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.2,
+    },
+  })
 }
 
 export async function addAllSourcesAndLayers(map, activeFilters = [], periodo = 'MANHA') {
   await addConcentracionSourceAndLayer(map, periodo)
-  addAntenasSourceAndLayer(map)
+  await addAntenasLayer(map)
   await addClustersSourceAndLayer(map)
   updateLayerVisibility(map, activeFilters)
 }
@@ -278,44 +389,7 @@ export function addClusterClickHandler(map, getStoreState) {
 
     if (!demo && !props) return
 
-    const riskLevel = props?.nivel_riesgo?.toUpperCase() ?? 'MEDIO'
-    const riskVariant = riskLevel === 'ALTO' ? 'red' : riskLevel === 'MEDIO' ? 'orange' : 'green'
-    const riskLabel = `Riesgo ${riskLevel.toLowerCase()} de exclusión digital`
-
-    const income = demo?.income ?? {}
-    const ageGroups = demo?.age_groups ?? {}
-    const totalIncome = Object.values(income).reduce((a, b) => a + b, 0)
-
-    const incomeLabels = { A: 'Clase A', B: 'Clase B', C: 'Clase C', D: 'Clase D' }
-    const incomeBreakdown = Object.entries(income).map(([key, val]) => ({
-      label: incomeLabels[key] ?? key,
-      value: val,
-      pct: totalIncome > 0 ? Math.round((val / totalIncome) * 100) : 0,
-    }))
-
-    const ageBreakdown = Object.entries(ageGroups).map(([key, val]) => ({ label: key, value: val }))
-
-    getStoreState().setSelectedCluster({
-      name: clusterName.replace(/_/g, ' '),
-      code: clusterName,
-      municipio: props?.municipio ?? '',
-      riskLevel,
-      riskLabel,
-      riskVariant,
-      n_assinantes: demo?.n_assinantes ?? 0,
-      score_riesgo: props?.score_riesgo ?? 0,
-      concentracion: props?.concentracion ?? 0,
-      vulnerabilidad: props?.vulnerabilidad ?? 0,
-      n_usuarios_total: props?.n_usuarios_total ?? 0,
-      pct_legacy_tech: props?.pct_legacy_tech ?? 0,
-      pct_renda_baja: props?.pct_renda_baja ?? 0,
-      congestion_media: props?.congestion_media ?? 0,
-      sin_cobertura: props?.sin_cobertura ?? false,
-      infra: props?.infra ?? 0,
-      incomeBreakdown,
-      ageBreakdown,
-    })
-
+    getStoreState().setSelectedCluster(buildClusterDetail(clusterName, demo, props))
     getStoreState().setChatContext({ region: clusterName })
     getStoreState().openLeftSidebar()
   })

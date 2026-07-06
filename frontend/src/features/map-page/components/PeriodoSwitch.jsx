@@ -23,9 +23,9 @@ import { Sunrise, Sun, Sunset, MoonStar } from "lucide-react";
 
 const PERIODOS = [
   { id: "MADRUGADA", label: "Madrugada", range: "00–06h", Icon: MoonStar },
-  { id: "MANHA", label: "Manhã", range: "06–12h", Icon: Sunrise },
+  { id: "MANHA", label: "Mañana", range: "06–12h", Icon: Sunrise },
   { id: "TARDE", label: "Tarde", range: "12–18h", Icon: Sun },
-  { id: "NOITE", label: "Noite", range: "18–24h", Icon: Sunset },
+  { id: "NOITE", label: "Noche", range: "18–24h", Icon: Sunset },
 ];
  
 // Fallbacks alineados a la paleta "Tweaks" (por si las variables
@@ -51,70 +51,90 @@ export default function PeriodoSwitch({ value, defaultValue = "MANHA", onChange 
     onChange?.(id);
   };
  
+  const active = PERIODOS[activeIndex] ?? PERIODOS[1];
+
   return (
     <div
-      role="tablist"
-      aria-label="Seleccionar período del día"
       style={{
-        position: "relative",
         display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         background: TOKENS.surface,
         border: `1px solid ${TOKENS.border}`,
         borderRadius: 8,
         padding: 2,
-        gap: 1,
       }}
     >
-      {/* Indicador activo deslizante */}
       <div
-        aria-hidden
+        role="tablist"
+        aria-label="Seleccionar período del día"
+        style={{ position: "relative", display: "inline-flex", gap: 1 }}
+      >
+        {/* Indicador activo deslizante */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: "calc(100% / 4)",
+            transform: `translateX(${activeIndex * 100}%)`,
+            background: TOKENS.primary,
+            borderRadius: 6,
+            transition: "transform 0.25s cubic-bezier(.4,0,.2,1)",
+          }}
+        />
+
+        {PERIODOS.map((p) => {
+          const isActive = p.id === periodo;
+          const isHovered = hovered === p.id;
+          const { Icon } = p;
+          return (
+            <button
+              key={p.id}
+              role="tab"
+              aria-selected={isActive}
+              title={`${p.label} (${p.range})`}
+              onClick={() => select(p.id)}
+              onMouseEnter={() => setHovered(p.id)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                position: "relative",
+                zIndex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 30,
+                height: 26,
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                background: !isActive && isHovered ? TOKENS.tint : "transparent",
+                color: isActive ? TOKENS.surface : isHovered ? TOKENS.primary : TOKENS.text2,
+                transition: "color 0.2s ease, background 0.2s ease",
+              }}
+            >
+              <Icon size={14} strokeWidth={2} />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Etiqueta del período activo */}
+      <span
         style={{
-          position: "absolute",
-          top: 2,
-          bottom: 2,
-          left: 2,
-          width: "calc((100% - 4px) / 4)",
-          transform: `translateX(${activeIndex * 100}%)`,
-          background: TOKENS.primary,
-          borderRadius: 6,
-          transition: "transform 0.25s cubic-bezier(.4,0,.2,1)",
+          paddingRight: 8,
+          fontSize: 11,
+          fontWeight: 600,
+          whiteSpace: "nowrap",
+          color: TOKENS.text,
         }}
-      />
- 
-      {PERIODOS.map((p) => {
-        const isActive = p.id === periodo;
-        const isHovered = hovered === p.id;
-        const { Icon } = p;
-        return (
-          <button
-            key={p.id}
-            role="tab"
-            aria-selected={isActive}
-            title={`${p.label} (${p.range})`}
-            onClick={() => select(p.id)}
-            onMouseEnter={() => setHovered(p.id)}
-            onMouseLeave={() => setHovered(null)}
-            style={{
-              position: "relative",
-              zIndex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 30,
-              height: 26,
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              background: !isActive && isHovered ? TOKENS.tint : "transparent",
-              color: isActive ? TOKENS.surface : isHovered ? TOKENS.primary : TOKENS.text2,
-              transition: "color 0.2s ease, background 0.2s ease",
-            }}
-          >
-            <Icon size={14} strokeWidth={2} />
-          </button>
-        );
-      })}
+      >
+        {active.label}
+        <span style={{ marginLeft: 4, fontWeight: 400, color: TOKENS.text2 }}>{active.range}</span>
+      </span>
     </div>
   );
 }

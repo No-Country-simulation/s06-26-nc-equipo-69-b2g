@@ -72,7 +72,7 @@ const TARJETAS_MOB = [
 const TARJETAS_DESK = [
   { icon: "datos",  title: "Qué datos usa",       desc: "Vísent CDRView (concentración, calidad de red, movilidad OD), Anatel e IBGE.", link: "Ver fuentes"  },
   { icon: "chat",   title: "Qué podés preguntar", desc: "“¿Dónde hay mucha gente y mala calidad de red?” — en lenguaje natural.",                 link: "Ver ejemplos" },
-  { icon: "barras", title: "Qué devuelve",         desc: "Respuesta con datos, fuente, recomendación y cluster resaltado.",               link: "Ver ejemplo"  },
+  { icon: "barras", title: "Qué devuelve",         desc: "Respuesta con datos, fuente, recomendación y zona resaltada.",               link: "Ver ejemplo"  },
 ];
 
 function MobileLayout() {

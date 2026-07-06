@@ -18,7 +18,7 @@ const sources = [
   {
     Icon: Users,
     name: 'IBGE',
-    desc: 'Censo 2022: contexto sociodemográfico y territorial de los clusters.',
+    desc: 'Censo 2022: contexto sociodemográfico y territorial de las zonas.',
     link: 'ibge.gov.br ↗',
     color: '#156270',
   },

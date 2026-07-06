@@ -76,7 +76,7 @@ export default function ClusterTable() {
         <TableHeader>
           <TableRow className="bg-[#F5F6F4]">
             <TableHead className="w-10 px-3 py-2.5"></TableHead>
-            <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Cluster</TableHead>
+            <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Zona</TableHead>
             <TableHead className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Personas</TableHead>
             <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Red</TableHead>
             <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Congestión</TableHead>

@@ -6,12 +6,13 @@ import ClusterDetailSheet from './ClusterDetailSheet'
 import MapboxMap from './MapboxMap'
 import MapControlsGroup from './MapControlsGroup'
 import MapLegend from './MapLegend'
+import MapOnboarding from './MapOnboarding'
 
 export default function MapPageShell() {
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false)
   const isLeftSidebarOpen = useMapPageStore((s) => s.isLeftSidebarOpen)
   const toggleLeftSidebar = useMapPageStore((s) => s.toggleLeftSidebar)
-  const openMockClusterDetail = useMapPageStore((s) => s.openMockClusterDetail)
+  const openRecommendedClusterDetail = useMapPageStore((s) => s.openRecommendedClusterDetail)
   const selectedPeriodo = useMapPageStore((s) => s.selectedPeriodo)
   const setSelectedPeriodo = useMapPageStore((s) => s.setSelectedPeriodo)
 
@@ -22,12 +23,12 @@ export default function MapPageShell() {
       <AiChatPanel
         isOpen={isLeftSidebarOpen}
         onToggle={toggleLeftSidebar}
-        onOpenRecommendedCluster={openMockClusterDetail}
+        onOpenRecommendedCluster={openRecommendedClusterDetail}
       />
       <MobileAiChatSheet
         open={isMobileChatOpen}
         onOpenChange={setIsMobileChatOpen}
-        onOpenRecommendedCluster={openMockClusterDetail}
+        onOpenRecommendedCluster={openRecommendedClusterDetail}
       />
 
       <MapControlsGroup
@@ -52,6 +53,7 @@ export default function MapPageShell() {
       </div>
 
       <ClusterDetailSheet />
+      <MapOnboarding />
     </main>
   )
 }

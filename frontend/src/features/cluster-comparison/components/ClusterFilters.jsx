@@ -54,7 +54,7 @@ export default function ClusterFilters() {
 
       <button className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700">
         <Plus className="h-3 w-3" />
-        Agregar cluster
+        Agregar zona
       </button>
     </div>
   )

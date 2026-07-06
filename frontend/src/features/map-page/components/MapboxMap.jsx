@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { addAllSourcesAndLayers, addClusterClickHandler, ensureCorredoresLoaded, updateLayerVisibility } from '../lib/mapLayers'
+import { getClusters, getConcentracao, getDemografia } from '../api/mapaService'
+import { addAllSourcesAndLayers, addAntenaInteractions, addClusterClickHandler, ensureCorredoresLoaded, updateLayerVisibility } from '../lib/mapLayers'
 import useMapPageStore from '../store/useMapPageStore'
 
 const token = import.meta.env.VITE_API_KEY_MAPBOX
@@ -62,11 +63,12 @@ export default function MapboxMap({ selectedPeriodo }) {
 
         mapboxgl.accessToken = token
         setMapError(null)
+        // Whole Florianópolis metro region visible on first load
         map = new mapboxgl.Map({
           container: mapContainer.current,
           style: 'mapbox://styles/mapbox/light-v11',
-          center: [-48.55, -27.59],
-          zoom: 11,
+          center: [-48.6, -27.5],
+          zoom: 9,
         })
 
         map.addControl(new mapboxgl.NavigationControl(), 'bottom-right')
@@ -83,35 +85,43 @@ export default function MapboxMap({ selectedPeriodo }) {
 
         map.on('load', async () => {
           mapRef.current = map
+          getStoreState().setMapInstance(map)
           setLoaded(true)
           requestMapResize()
-          await addAllSourcesAndLayers(map, activeFilters, selectedPeriodo)
-          addClusterClickHandler(map, getStoreState)
 
-          const apiUrl = import.meta.env.VITE_API_URL || ''
+          try {
+            await addAllSourcesAndLayers(map, activeFilters, selectedPeriodo)
+          } catch (err) {
+            console.warn('Could not load map layers:', err)
+            showMapError('No se pudieron cargar los datos del mapa. Verificá la conexión con la API e intentá de nuevo.')
+            return
+          }
+
+          addClusterClickHandler(map, getStoreState)
+          addAntenaInteractions(map, mapboxgl, getStoreState)
 
           if (!demografiaData) {
             try {
-              const demoRes = await fetch(`${apiUrl}/api/v1/mapa/demografia`)
-              const demoJson = await demoRes.json()
-              setDemografiaData(demoJson)
-            } catch {
-              // demografia not available
+              setDemografiaData(await getDemografia())
+            } catch (err) {
+              console.warn('Could not load demografia data:', err)
             }
           }
 
           if (!clusterProperties) {
             try {
-              const clustersRes = await fetch(`${apiUrl}/api/v1/mapa/clusters`)
-              const clustersJson = await clustersRes.json()
+              const clustersJson = await getClusters()
               const propsMap = {}
               clustersJson.features.forEach((f) => {
                 const name = f.properties?.cluster
-                if (name) propsMap[name] = f.properties
+                if (name) {
+                  const [lng, lat] = f.geometry?.coordinates ?? []
+                  propsMap[name] = { ...f.properties, lng, lat }
+                }
               })
               setClusterProperties(propsMap)
-            } catch {
-              // clusters properties not available
+            } catch (err) {
+              console.warn('Could not load cluster properties:', err)
             }
           }
         })
@@ -150,6 +160,7 @@ export default function MapboxMap({ selectedPeriodo }) {
         window.removeEventListener('resize', requestMapResize)
       }
       if (map) {
+        getStoreState().setMapInstance(null)
         map.remove()
       }
     }
@@ -164,15 +175,15 @@ export default function MapboxMap({ selectedPeriodo }) {
   useEffect(() => {
     if (!mapRef.current || !loaded) return
     const map = mapRef.current
-    const apiUrl = import.meta.env.VITE_API_URL || ''
-    fetch(`${apiUrl}/api/v1/mapa/concentracao?periodo=${selectedPeriodo}`)
-      .then((r) => r.json())
+    getConcentracao(selectedPeriodo)
       .then((geojson) => {
         if (map.getSource('concentracion-heatmap')) {
           map.getSource('concentracion-heatmap').setData(geojson)
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.warn('Could not refresh concentracao data:', err)
+      })
   }, [selectedPeriodo, loaded])
 
   return (
