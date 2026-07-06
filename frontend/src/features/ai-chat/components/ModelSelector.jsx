@@ -1,11 +1,13 @@
 import { useEffect, useId, useState } from 'react'
 import { Cpu, Loader2 } from 'lucide-react'
 import { getModels, setModel } from '../api/modelsService'
+import { setSelectedModel } from '../api/modelStore'
 
 /**
- * Compact model picker shown in the chat header. Loads the whitelist + current
- * selection from the backend on mount and switches the active model live —
- * no redeploy, the change applies to every following query for everyone.
+ * Compact model picker shown in the chat header. Loads the whitelist + the
+ * caller's current model (the persisted per-user preference when logged in,
+ * the server default otherwise). Switching persists server-side for logged-in
+ * users and always applies to this session's queries via the model store.
  */
 export default function ModelSelector() {
   const selectId = useId()
@@ -21,6 +23,7 @@ export default function ModelSelector() {
         if (!active) return
         setModels(data.models ?? [])
         setCurrent(data.current ?? '')
+        setSelectedModel(data.current ?? null)
         setStatus('ready')
       })
       .catch((err) => {
@@ -39,15 +42,24 @@ export default function ModelSelector() {
     const previous = current
 
     setCurrent(next)
+    setSelectedModel(next)
     setStatus('saving')
 
     try {
       const data = await setModel(next)
       setCurrent(data.current ?? next)
+      setSelectedModel(data.current ?? next)
       setStatus('ready')
     } catch (err) {
       console.warn('POST /models failed:', err)
+      // 401 = anonymous user: the choice can't persist server-side, but it
+      // still applies to this session's queries (model store keeps it).
+      if (err?.status === 401) {
+        setStatus('ready')
+        return
+      }
       setCurrent(previous) // revert on failure
+      setSelectedModel(previous || null)
       setStatus('error')
     }
   }
