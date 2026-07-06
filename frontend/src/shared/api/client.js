@@ -10,8 +10,10 @@ export class ApiError extends Error {
 }
 
 // Generous timeout: the API is hosted on Render's free tier, where cold
-// starts after inactivity can take 30-50s before the first response.
-const REQUEST_TIMEOUT_MS = 60_000
+// starts after inactivity can take 30-50s before the first response. On top
+// of that, the /datos AI endpoint waits on the LLM, so we allow extra margin
+// to avoid aborting a valid (if slow) answer.
+const REQUEST_TIMEOUT_MS = 90_000
 
 /**
  * Thin wrapper over fetch: single source of truth for the API base URL,
