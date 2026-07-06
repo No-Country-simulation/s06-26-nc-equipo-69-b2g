@@ -10,7 +10,6 @@ import {
 } from '@/shared/components/ui/table'
 import { Badge } from '@/shared/components/ui/badge'
 import { Checkbox } from '@/shared/components/ui/checkbox'
-import { getClusters } from '@/features/map-page/api/mapaService'
 
 function formatClusterName(name) {
   return name
@@ -80,6 +79,7 @@ function SkeletonRow() {
   )
 }
 
+// Columnas que se pueden ordenar
 const SORTABLE_COLUMNS = {
   cluster: { label: 'Región', field: 'cluster', type: 'string' },
   usuarios: { label: 'Usuarios', field: 'n_usuarios_total', type: 'number' },
@@ -99,6 +99,7 @@ function SortIcon({ column, current }) {
 function RowDetail({ cluster }) {
   return (
     <div className="animate-slide-down grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Score breakdown */}
       <div className="rounded-xl border border-[#E2E4DF] bg-[#F9FAF8] p-3">
         <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Score</h4>
         <div className="mb-1 flex items-center justify-between text-xs">
@@ -148,6 +149,7 @@ function RowDetail({ cluster }) {
         </div>
       </div>
 
+      {/* Users + Renta */}
       <div className="rounded-xl border border-[#E2E4DF] bg-[#F9FAF8] p-3">
         <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Demografía</h4>
         <div className="mb-2 flex items-baseline justify-between">
@@ -168,6 +170,7 @@ function RowDetail({ cluster }) {
         </div>
       </div>
 
+      {/* Congestión + Calidad */}
       <div className="rounded-xl border border-[#E2E4DF] bg-[#F9FAF8] p-3">
         <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Red</h4>
         <div className="mb-2">
@@ -177,10 +180,8 @@ function RowDetail({ cluster }) {
           </div>
           {cluster.congestion_media > 0 && (
             <div className="mt-1 h-1.5 w-full rounded-full bg-gray-200">
-              <div
-                className={`h-1.5 rounded-full ${congestionColor(cluster.congestion_media)}`}
-                style={{ width: `${Math.round(cluster.congestion_media * 100)}%` }}
-              />
+              <div className={`h-1.5 rounded-full ${congestionColor(cluster.congestion_media)}`}
+                style={{ width: `${Math.round(cluster.congestion_media * 100)}%` }} />
             </div>
           )}
           <p className="mt-0.5 text-[10px] text-gray-400">{formatPct(cluster.congestion_media)} en hora pico</p>
@@ -192,10 +193,8 @@ function RowDetail({ cluster }) {
           </div>
           {cluster.pct_legacy_tech > 0 && (
             <div className="mt-1 h-1.5 w-full rounded-full bg-gray-200">
-              <div
-                className={`h-1.5 rounded-full ${calidadColor(cluster.pct_legacy_tech)}`}
-                style={{ width: `${Math.round(cluster.pct_legacy_tech * 100)}%` }}
-              />
+              <div className={`h-1.5 rounded-full ${calidadColor(cluster.pct_legacy_tech)}`}
+                style={{ width: `${Math.round(cluster.pct_legacy_tech * 100)}%` }} />
             </div>
           )}
           <p className="mt-0.5 text-[10px] text-gray-400">{formatPct(cluster.pct_legacy_tech)} tecnología legado</p>
@@ -208,6 +207,7 @@ function RowDetail({ cluster }) {
         </div>
       </div>
 
+      {/* Acción recomendada (full width) */}
       <div className="col-span-full rounded-xl border border-[#E2E4DF] bg-[#F9FAF8] p-3">
         <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Acción recomendada</h4>
         <p className="text-sm font-medium text-gray-800">
@@ -232,17 +232,18 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
   const [clusters, setClusters] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [sort, setSort] = useState(null)
-  const [expanded, setExpanded] = useState(null)
+  const [sort, setSort] = useState(null) // { column: string, direction: 'asc' | 'desc' }
+  const [expanded, setExpanded] = useState(null) // cluster name
 
   useEffect(() => {
-    let cancelled = false
-
     async function fetchClusters() {
       try {
-        const geojson = await getClusters()
-        if (cancelled) return
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://s06-26-nc-equipo-69-b2g-uxsh.onrender.com'
+        const res = await fetch(`${baseUrl}/api/v1/mapa/clusters`)
 
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+
+        const geojson = await res.json()
         const data = (geojson.features || []).map((f) => ({
           ...f.properties,
           lat: f.geometry?.coordinates?.[1] ?? null,
@@ -252,35 +253,33 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
         data.sort((a, b) => (b.score_riesgo ?? 0) - (a.score_riesgo ?? 0))
         setClusters(data)
       } catch (err) {
-        if (cancelled) return
         console.error('Error fetching clusters:', err)
         setError(err.message)
       } finally {
-        if (!cancelled) setLoading(false)
+        setLoading(false)
       }
     }
 
     fetchClusters()
-
-    return () => {
-      cancelled = true
-    }
   }, [])
 
   const sorted = useMemo(() => {
     let result = clusters
 
+    // Filtrar por nivel de riesgo
     result = result.filter((c) => activeFilters.includes(c.nivel_riesgo))
 
+    // Filtrar por búsqueda
     if (search.trim()) {
       const term = search.toLowerCase()
       result = result.filter(
         (c) =>
           c.cluster.toLowerCase().includes(term) ||
-          (c.municipio || '').toLowerCase().includes(term)
+          c.municipio.toLowerCase().includes(term)
       )
     }
 
+    // Ordenar
     if (sort) {
       const col = SORTABLE_COLUMNS[sort.column]
       if (col) {
@@ -296,6 +295,7 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
               : valB.localeCompare(valA)
           }
 
+          // number
           valA = valA ?? 0
           valB = valB ?? 0
           return sort.direction === 'asc' ? valA - valB : valB - valA
@@ -310,7 +310,7 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
     setSort((prev) => {
       if (prev?.column !== column) return { column, direction: 'asc' }
       if (prev.direction === 'asc') return { column, direction: 'desc' }
-      return null
+      return null // tercer click: sin orden
     })
   }
 
@@ -373,215 +373,218 @@ export default function ClusterTable({ selected = [], onToggle, onToggleAll, act
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-[#F5F6F4]">
             <TableRow className="bg-[#F5F6F4]">
-              <TableHead className="w-10 px-3 py-2.5">
-                <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={() => onToggleAll(sorted.map((c) => c.cluster))}
-                  className="data-[state=checked]:border-[#564C8E] data-[state=checked]:bg-[#564C8E] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
-                />
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
-                onClick={() => handleSort('cluster')}
-              >
-                <span className="inline-flex items-center">
-                  Región
-                  <SortIcon column="cluster" current={sort} />
-                </span>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
-                onClick={() => handleSort('usuarios')}
-              >
-                <span className="inline-flex items-center justify-end">
-                  Usuarios
-                  <SortIcon column="usuarios" current={sort} />
-                </span>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
-                onClick={() => handleSort('score')}
-              >
-                <span className="inline-flex items-center">
-                  Score
-                  <SortIcon column="score" current={sort} />
-                </span>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
-                onClick={() => handleSort('red')}
-              >
-                <span className="inline-flex items-center">
-                  Red
-                  <SortIcon column="red" current={sort} />
-                </span>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
-                onClick={() => handleSort('congestion')}
-              >
-                <span className="inline-flex items-center">
-                  Congestión
-                  <SortIcon column="congestion" current={sort} />
-                </span>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
-                onClick={() => handleSort('riesgo')}
-              >
-                <span className="inline-flex items-center">
-                  Riesgo
-                  <SortIcon column="riesgo" current={sort} />
-                </span>
-              </TableHead>
-              <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Acción</TableHead>
-            </TableRow>
+            <TableHead className="w-10 px-3 py-2.5">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={() => onToggleAll(sorted.map((c) => c.cluster))}
+                className="data-[state=checked]:border-[#564C8E] data-[state=checked]:bg-[#564C8E] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
+              />
+            </TableHead>
+            <TableHead
+              className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
+              onClick={() => handleSort('cluster')}
+            >
+              <span className="inline-flex items-center">
+                Región
+                <SortIcon column="cluster" current={sort} />
+              </span>
+            </TableHead>
+            <TableHead
+              className="cursor-pointer select-none px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
+              onClick={() => handleSort('usuarios')}
+            >
+              <span className="inline-flex items-center justify-end">
+                Usuarios
+                <SortIcon column="usuarios" current={sort} />
+              </span>
+            </TableHead>
+            <TableHead
+              className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
+              onClick={() => handleSort('score')}
+            >
+              <span className="inline-flex items-center">
+                Score
+                <SortIcon column="score" current={sort} />
+              </span>
+            </TableHead>
+            <TableHead
+              className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
+              onClick={() => handleSort('red')}
+            >
+              <span className="inline-flex items-center">
+                Red
+                <SortIcon column="red" current={sort} />
+              </span>
+            </TableHead>
+            <TableHead
+              className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
+              onClick={() => handleSort('congestion')}
+            >
+              <span className="inline-flex items-center">
+                Congestión
+                <SortIcon column="congestion" current={sort} />
+              </span>
+            </TableHead>
+            <TableHead
+              className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
+              onClick={() => handleSort('riesgo')}
+            >
+              <span className="inline-flex items-center">
+                Riesgo
+                <SortIcon column="riesgo" current={sort} />
+              </span>
+            </TableHead>
+            <TableHead className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Acción</TableHead>
+          </TableRow>
 
-            {sort && (
-              <TableRow className="bg-[#FAFBF9]">
-                <TableCell colSpan={8} className="px-3 py-1 text-[10px] text-gray-400">
-                  Ordenado por <span className="font-medium text-gray-600">{SORTABLE_COLUMNS[sort.column]?.label}</span>{' '}
-                  ({sort.direction === 'asc' ? 'ascendente' : 'descendente'})
-                  {' · '}
-                  <button
-                    onClick={() => setSort(null)}
-                    className="text-[#564C8E] hover:underline"
+          {/* Indicador de orden activo */}
+          {sort && (
+            <TableRow className="bg-[#FAFBF9]">
+              <TableCell colSpan={8} className="px-3 py-1 text-[10px] text-gray-400">
+                Ordenado por <span className="font-medium text-gray-600">{SORTABLE_COLUMNS[sort.column]?.label}</span>{' '}
+                ({sort.direction === 'asc' ? 'ascendente' : 'descendente'})
+                {' · '}
+                <button
+                  onClick={() => setSort(null)}
+                  className="text-[#564C8E] hover:underline"
+                >
+                  Limpiar orden
+                </button>
+              </TableCell>
+            </TableRow>
+          )}
+        </TableHeader>
+        <TableBody>
+          {sorted.map((c) => {
+            const name = formatClusterName(c.cluster)
+            const isExpanded = expanded === c.cluster
+            return (
+              <Fragment key={c.cluster}>
+                <TableRow
+                  className={`transition-colors hover:bg-gray-50 ${c.sin_cobertura ? 'bg-gray-50' : ''} ${isExpanded ? 'bg-[#F8F7FC]' : ''}`}
+                >
+                  <TableCell className="px-3 py-2.5">
+                    <Checkbox
+                      checked={selected.includes(c.cluster)}
+                      onCheckedChange={() => onToggle(c.cluster)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="data-[state=checked]:border-[#564C8E] data-[state=checked]:bg-[#564C8E] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
+                    />
+                  </TableCell>
+                  <TableCell
+                    className="cursor-pointer px-3 py-2.5 text-xs font-medium transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}
                   >
-                    Limpiar orden
-                  </button>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableHeader>
-          <TableBody>
-            {sorted.map((c) => {
-              const name = formatClusterName(c.cluster)
-              const isExpanded = expanded === c.cluster
-              return (
-                <Fragment key={c.cluster}>
-                  <TableRow
-                    className={`transition-colors hover:bg-gray-50 ${c.sin_cobertura ? 'bg-gray-50' : ''} ${isExpanded ? 'bg-[#F8F7FC]' : ''}`}
-                  >
-                    <TableCell className="px-3 py-2.5">
-                      <Checkbox
-                        checked={selected.includes(c.cluster)}
-                        onCheckedChange={() => onToggle(c.cluster)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="data-[state=checked]:border-[#564C8E] data-[state=checked]:bg-[#564C8E] data-[state=checked]:text-white data-[state=checked]:[&>svg]:text-white"
-                      />
-                    </TableCell>
-                    <TableCell
-                      className="cursor-pointer px-3 py-2.5 text-xs font-medium transition-colors hover:text-[#564C8E]"
-                      onClick={() => handleRowClick(c.cluster)}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        {isExpanded ? <ChevronDown className="h-3 w-3 text-[#564C8E]" /> : <ChevronRight className="h-3 w-3 text-gray-300" />}
-                        {name}
-                        {c.sin_cobertura && (
-                          <span title="Sin cobertura">
-                            <WifiOff className="h-3 w-3 text-red-400" />
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="cursor-pointer px-3 py-2.5 text-right text-xs tabular-nums transition-colors hover:text-[#564C8E]"
-                      onClick={() => handleRowClick(c.cluster)}>
-                      {formatNumber(c.n_usuarios_total)}
-                    </TableCell>
-                    <TableCell className="cursor-pointer px-3 py-2.5 text-xs tabular-nums transition-colors hover:text-[#564C8E]"
-                      onClick={() => handleRowClick(c.cluster)}>
-                      <div className="flex items-center gap-1.5 group/score">
-                        <div className="relative h-1.5 w-10 rounded-full bg-gray-200">
-                          <div
-                            className="h-1.5 rounded-full"
-                            style={{
-                              width: `${Math.round(c.score_riesgo * 100)}%`,
-                              backgroundColor: c.score_riesgo > 0.6 ? '#EF4444' : c.score_riesgo > 0.45 ? '#EAB308' : '#22C55E',
-                            }}
-                          />
-                          <div className="absolute bottom-full left-1/2 z-10 mb-1 w-40 -translate-x-1/2 rounded-md border bg-white px-2 py-1 text-[11px] text-gray-600 opacity-0 shadow-lg transition-opacity group-hover/score:opacity-100 pointer-events-none">
-                            <div className="font-medium mb-1">Score: {c.score_riesgo.toFixed(3)}</div>
-                            <div className="text-red-500">Alto: {'>'} 0.6</div>
-                            <div className="text-yellow-500">Medio: 0.45 – 0.6</div>
-                            <div className="text-green-500">Bajo: {'<'} 0.45</div>
-                          </div>
-                        </div>
-                        <span className="text-[11px] text-gray-500">{c.score_riesgo.toFixed(3)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
-                      onClick={() => handleRowClick(c.cluster)}>
-                      {c.pct_legacy_tech > 0 ? (
-                        <span>{calidadLabel(c.pct_legacy_tech)}</span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
-                      onClick={() => handleRowClick(c.cluster)}>
-                      {c.congestion_media > 0 ? (
-                        <span>{congestionLabel(c.congestion_media)}</span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
-                      onClick={() => handleRowClick(c.cluster)}>
-                      <div className="flex items-center gap-1">
-                        {c.nivel_riesgo === 'ALTO' ? (
-                          <Badge variant="outline" className="inline-flex items-center gap-1 border-red-300 bg-red-50 text-red-700 rounded-full px-2 py-0.5 text-[11px]">
-                            <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                            Alto
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="inline-flex items-center gap-1 border-yellow-300 bg-yellow-50 text-yellow-700 rounded-full px-2 py-0.5 text-[11px]">
-                            <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
-                            Medio
-                          </Badge>
-                        )}
-                        <span className="group relative inline-flex cursor-help">
-                          <Info className="h-3 w-3 text-gray-400" />
-                          <span className="invisible group-hover:visible absolute bottom-full left-1/2 z-50 mb-1 w-72 -translate-x-1/2 rounded-md border border-gray-200 bg-white px-2.5 py-2 text-[11px] text-gray-600 shadow-lg pointer-events-none">
-                            <div className="mb-1 font-medium text-gray-900">Score: {c.score_riesgo.toFixed(3)}</div>
-                            <div className="text-gray-500">Concentración, congestión, movilidad y conectividad</div>
-                          </span>
+                    <div className="flex items-center gap-1.5">
+                      {isExpanded ? <ChevronDown className="h-3 w-3 text-[#564C8E]" /> : <ChevronRight className="h-3 w-3 text-gray-300" />}
+                      {name}
+                      {c.sin_cobertura && (
+                        <span title="Sin cobertura">
+                          <WifiOff className="h-3 w-3 text-red-400" />
                         </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5 text-xs">
-                      <div className="flex items-center gap-2">
-                        {c.sin_cobertura ? (
-                          <span className="font-medium text-red-500">Sin cobertura</span>
-                        ) : (
-                          <span className="text-gray-700">{generarAccion(c)}</span>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onAskAI?.([c.cluster])
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-right text-xs tabular-nums transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    {formatNumber(c.n_usuarios_total)}
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs tabular-nums transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    <div className="flex items-center gap-1.5 group/score">
+                      <div className="relative h-1.5 w-10 rounded-full bg-gray-200">
+                        <div
+                          className="h-1.5 rounded-full"
+                          style={{
+                            width: `${Math.round(c.score_riesgo * 100)}%`,
+                            backgroundColor: c.score_riesgo > 0.6 ? '#EF4444' : c.score_riesgo > 0.45 ? '#EAB308' : '#22C55E',
                           }}
-                          className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-[#564C8E]/10 hover:text-[#564C8E]"
-                          title="Preguntar a la IA sobre esta zona"
-                        >
-                          <Bot className="h-3.5 w-3.5" />
-                        </button>
+                        />
+                        <div className="absolute bottom-full left-1/2 z-10 mb-1 w-40 -translate-x-1/2 rounded-md border bg-white px-2 py-1 text-[11px] text-gray-600 opacity-0 shadow-lg transition-opacity group-hover/score:opacity-100 pointer-events-none">
+                          <div className="font-medium mb-1">Score: {c.score_riesgo.toFixed(3)}</div>
+                          <div className="text-red-500">Alto: {'>'} 0.6</div>
+                          <div className="text-yellow-500">Medio: 0.45 – 0.6</div>
+                          <div className="text-green-500">Bajo: {'<'} 0.45</div>
+                        </div>
                       </div>
+                      <span className="text-[11px] text-gray-500">{c.score_riesgo.toFixed(3)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    {c.pct_legacy_tech > 0 ? (
+                      <span>{calidadLabel(c.pct_legacy_tech)}</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    {c.congestion_media > 0 ? (
+                      <span>{congestionLabel(c.congestion_media)}</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="cursor-pointer px-3 py-2.5 text-xs transition-colors hover:text-[#564C8E]"
+                    onClick={() => handleRowClick(c.cluster)}>
+                    <div className="flex items-center gap-1">
+                      {c.nivel_riesgo === 'ALTO' ? (
+                        <Badge variant="outline" className="inline-flex items-center gap-1 border-red-300 bg-red-50 text-red-700 rounded-full px-2 py-0.5 text-[11px]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                          Alto
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="inline-flex items-center gap-1 border-yellow-300 bg-yellow-50 text-yellow-700 rounded-full px-2 py-0.5 text-[11px]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                          Medio
+                        </Badge>
+                      )}
+                      <span className="group relative inline-flex cursor-help">
+                        <Info className="h-3 w-3 text-gray-400" />
+                        <span className="invisible group-hover:visible absolute bottom-full left-1/2 z-50 mb-1 w-72 -translate-x-1/2 rounded-md border border-gray-200 bg-white px-2.5 py-2 text-[11px] text-gray-600 shadow-lg pointer-events-none">
+                          <div className="mb-1 font-medium text-gray-900">Score: {c.score_riesgo.toFixed(3)}</div>
+                          <div className="text-gray-500">Concentración, congestión, movilidad y conectividad</div>
+                        </span>
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-3 py-2.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      {c.sin_cobertura ? (
+                        <span className="font-medium text-red-500">Sin cobertura</span>
+                      ) : (
+                        <span className="text-gray-700">{generarAccion(c)}</span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onAskAI?.([c.cluster])
+                        }}
+                        className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-[#564C8E]/10 hover:text-[#564C8E]"
+                        title="Preguntar a la IA sobre esta región"
+                      >
+                        <Bot className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+
+                {isExpanded && (
+                  <TableRow className="bg-[#F8F7FC]">
+                    <TableCell colSpan={8} className="p-0">
+                      <RowDetail cluster={c} />
                     </TableCell>
                   </TableRow>
-
-                  {isExpanded && (
-                    <TableRow className="bg-[#F8F7FC]">
-                      <TableCell colSpan={8} className="p-0">
-                        <RowDetail cluster={c} />
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </Fragment>
-              )
-            })}
-          </TableBody>
-        </Table>
+                )}
+              </Fragment>
+            )
+          })}
+        </TableBody>
+      </Table>
       </div>
     </div>
   )
 }
+
+

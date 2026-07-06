@@ -15,7 +15,7 @@ export default function ClusterFilters({ activeFilters, onToggleFilter, search, 
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
-          placeholder="Buscar zona..."
+          placeholder="Buscar cluster..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           className="w-full rounded-lg border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs text-gray-700 placeholder-gray-400 shadow-sm transition-colors focus:border-[#564C8E] focus:outline-none focus:ring-1 focus:ring-[#564C8E]"
