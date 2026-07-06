@@ -4,11 +4,6 @@ import { Sheet, SheetContent, SheetTitle } from '@/shared/components/ui/sheet'
 import { askTerritorio } from '../api/datosService'
 import useMapPageStore from '@/features/map-page/store/useMapPageStore'
 
-const quickActions = [
-  '¿Qué zona debería priorizarse?',
-  '¿Dónde hay alta concentración sin cobertura?',
-]
-
 const initialMessages = [
   {
     id: 'welcome',
@@ -20,6 +15,19 @@ const initialMessages = [
 
 const PANEL_MARGIN = 16
 const RIGHT_ALIGNED_X = Number.MAX_SAFE_INTEGER
+const MAP_NAVIGATION_PATTERN = /\b(zoom|acerc|mostr|ver|ir|lleva|ubica|ubicá|enfoca|localiza|resalta|marc|señala)\w*\b/i
+const ZONE_TERM_PATTERN = /\b(clusteres|clusters|cluster|clústeres|clústers|clúster)\b/gi
+const ZONE_WORD_OVERRIDES = {
+  PALHOCA: 'Palhoça',
+  SAO: 'São',
+  SANTO: 'Santo',
+  AMARO: 'Amaro',
+  SUL: 'Sur',
+  NORTE: 'Norte',
+  LESTE: 'Este',
+  OESTE: 'Oeste',
+  CENTRO: 'Centro',
+}
 
 export default function AiChatPanel({ isOpen, onToggle }) {
   const panelRef = useRef(null)
@@ -165,12 +173,15 @@ export function MobileAiChatSheet({ open, onOpenChange }) {
 function AiChatContent({ dragHandleProps, onClose }) {
   const chatContext = useMapPageStore((s) => s.chatContext)
   const clearChatContext = useMapPageStore((s) => s.clearChatContext)
+  const removeChatRegion = useMapPageStore((s) => s.removeChatRegion)
+  const clusterProperties = useMapPageStore((s) => s.clusterProperties)
   const setHighlightedClusters = useMapPageStore((s) => s.setHighlightedClusters)
   const [messages, setMessages] = useState(initialMessages)
   const [inputValue, setInputValue] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const inputId = useId()
   const scrollAreaRef = useRef(null)
+  const chatRegions = getChatContextRegions(chatContext)
 
   useEffect(() => {
     const scrollArea = scrollAreaRef.current
@@ -200,11 +211,19 @@ function AiChatContent({ dragHandleProps, onClose }) {
       setInputValue('')
       setIsTyping(true)
 
+      const requestedClusters = findRequestedClusters(trimmedMessage, clusterProperties)
+      if (requestedClusters.length > 0) {
+        setHighlightedClusters(requestedClusters)
+      }
+
       try {
-        const res = await askTerritorio(trimmedMessage, chatContext ?? {})
+        const res = await askTerritorio(trimmedMessage, buildBackendChatContext(chatContext))
+        const highlightedClusters = res.clusters_destacados?.length
+          ? res.clusters_destacados
+          : requestedClusters
 
         // Sync the map: highlight (or clear) the zones the AI mentions
-        setHighlightedClusters(res.clusters_destacados ?? [])
+        setHighlightedClusters(highlightedClusters)
 
         setMessages((currentMessages) => [
           ...currentMessages,
@@ -213,7 +232,7 @@ function AiChatContent({ dragHandleProps, onClose }) {
             role: 'assistant',
             content: res.respuesta_ia ?? 'No obtuve respuesta. Intentá de nuevo.',
             fuentes: res.fuentes ?? [],
-            destacados: res.clusters_destacados ?? [],
+            destacados: highlightedClusters,
           },
         ])
       } catch (err) {
@@ -232,7 +251,7 @@ function AiChatContent({ dragHandleProps, onClose }) {
         setIsTyping(false)
       }
     },
-    [inputValue, isTyping, chatContext, setHighlightedClusters],
+    [inputValue, isTyping, chatContext, clusterProperties, setHighlightedClusters],
   )
 
   const handleInputKeyDown = (event) => {
@@ -267,24 +286,6 @@ function AiChatContent({ dragHandleProps, onClose }) {
             </p>
           </div>
         </div>
-        {chatContext?.region || chatContext?.ecgi ? (
-          <div className="flex items-center gap-1.5 rounded-full bg-purple-50 px-2.5 py-1 text-[10px] font-medium text-purple-700">
-            {chatContext.region ? <MapPin className="h-3 w-3" /> : <RadioTower className="h-3 w-3" />}
-            <span>
-              {chatContext.region
-                ? chatContext.region.replace(/_/g, ' ')
-                : `Antena ${chatContext.ecgi}`}
-            </span>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); clearChatContext(); }}
-              className="ml-1 text-purple-400 hover:text-purple-700"
-              aria-label="Quitar contexto de la consulta"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ) : null}
         <button
           type="button"
           onClick={onClose}
@@ -295,6 +296,15 @@ function AiChatContent({ dragHandleProps, onClose }) {
           <X className="h-4 w-4" />
         </button>
       </div>
+
+      {chatRegions.length > 0 || chatContext?.ecgi ? (
+        <ChatContextBar
+          regions={chatRegions}
+          ecgi={chatContext?.ecgi}
+          onRemoveRegion={removeChatRegion}
+          onClear={clearChatContext}
+        />
+      ) : null}
 
       <div
         ref={scrollAreaRef}
@@ -307,20 +317,6 @@ function AiChatContent({ dragHandleProps, onClose }) {
         ))}
 
         {isTyping ? <TypingIndicator /> : null}
-
-        <div className="flex flex-wrap gap-1.5">
-          {quickActions.map((action) => (
-            <button
-              key={action}
-              type="button"
-              onClick={() => handleSendMessage(action)}
-              disabled={isTyping}
-              className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-medium text-gray-600 transition-colors hover:border-purple-300 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {action}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="shrink-0 border-t border-gray-100 p-3">
@@ -360,24 +356,24 @@ function ChatMessage({ message }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[82%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+        className={`max-w-[88%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
           isUser
             ? 'rounded-tr-sm text-white'
-            : 'rounded-tl-sm border border-gray-100 bg-gray-50/80 text-gray-600'
+            : 'rounded-tl-sm border border-gray-200 bg-white text-gray-700 shadow-sm'
         }`}
         style={isUser ? { backgroundColor: 'var(--bit-purple-deep)' } : undefined}
       >
-        {!isUser ? <p className="mb-1 text-[10px] font-semibold text-gray-700">Asistente BiT</p> : null}
+        {!isUser ? <p className="mb-2 text-[10px] font-semibold text-gray-700">Asistente BiT</p> : null}
         {isUser ? <p>{message.content}</p> : <AssistantText content={message.content} />}
 
         {message.destacados?.length > 0 ? (
-          <p className="mt-1.5 text-[10px] text-blue-600">
+          <p className="mt-2 inline-flex rounded-full bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-700">
             ● {message.destacados.length === 1 ? 'Zona resaltada' : `${message.destacados.length} zonas resaltadas`} en el mapa
           </p>
         ) : null}
 
         {message.fuentes?.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-1 border-t border-gray-200/70 pt-1.5">
+          <div className="mt-2 flex flex-wrap gap-1 border-t border-gray-200/70 pt-2">
             <span className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">Fuentes:</span>
             {message.fuentes.map((fuente) => (
               <span
@@ -399,7 +395,7 @@ function ChatMessage({ message }) {
  * bullet list and the closing "Sugerencia Estratégica" gets its own callout.
  */
 function AssistantText({ content }) {
-  const lines = (content ?? '').split('\n')
+  const lines = sanitizeAssistantText(content).split('\n')
   const blocks = []
   let bullets = []
 
@@ -415,29 +411,54 @@ function AssistantText({ content }) {
     if (!line) return
 
     if (line.startsWith('- ') || line.startsWith('• ')) {
-      bullets.push(line.slice(2).trim())
+      bullets.push(parseBullet(line.slice(2).trim()))
       return
     }
 
     flushBullets()
-    if (/^sugerencia estratégica/i.test(line)) {
-      blocks.push({ type: 'suggestion', text: line.replace(/^sugerencia estratégica:?\s*/i, '') })
+    const normalizedLine = stripMarkdown(line)
+    if (/^sugerencia estratégica/i.test(normalizedLine)) {
+      blocks.push({
+        type: 'suggestion',
+        text: normalizedLine.replace(/^sugerencia estratégica:?\s*/i, ''),
+      })
       return
     }
-    blocks.push({ type: 'paragraph', text: line })
+    blocks.push({ type: 'paragraph', text: normalizedLine })
   })
   flushBullets()
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5 [text-wrap:pretty]">
       {blocks.map((block, i) => {
         if (block.type === 'list') {
           return (
-            <ul key={i} className="space-y-1.5">
+            <ul key={i} className="space-y-2.5">
               {block.items.map((item, j) => (
-                <li key={j} className="flex gap-1.5">
-                  <span className="mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full bg-purple-300" />
-                  <span>{item}</span>
+                <li key={j} className="rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50/90 to-white px-2.5 py-2 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    {item.label ? (
+                      <p className="font-semibold text-purple-950">{item.label}</p>
+                    ) : null}
+                    {item.risk ? (
+                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${riskBadgeClass(item.risk)}`}>
+                        {item.risk}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-gray-700">{item.text}</p>
+                  {item.metrics.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {item.metrics.map((metric) => (
+                        <span
+                          key={metric}
+                          className="rounded-full border border-purple-100 bg-white/85 px-2 py-0.5 text-[9px] font-semibold text-purple-700"
+                        >
+                          {metric}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -453,10 +474,182 @@ function AssistantText({ content }) {
             </div>
           )
         }
-        return <p key={i}>{block.text}</p>
+        return <p key={i} className="text-gray-700">{block.text}</p>
       })}
     </div>
   )
+}
+
+function ChatContextBar({ regions, ecgi, onRemoveRegion, onClear }) {
+  const hasMultipleRegions = regions.length > 1
+
+  return (
+    <div className="border-b border-purple-100 bg-purple-50/60 px-4 py-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-purple-700">
+          Contexto de consulta
+          {hasMultipleRegions ? ` · ${regions.length} zonas` : ''}
+        </p>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-[10px] font-semibold text-purple-500 transition-colors hover:text-purple-800"
+        >
+          Limpiar
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {regions.map((region) => (
+          <ContextChip
+            key={region}
+            icon={<MapPin className="h-3 w-3" aria-hidden="true" />}
+            label={formatZoneLabel(region)}
+            onRemove={() => onRemoveRegion(region)}
+            removeLabel={`Quitar zona ${formatZoneLabel(region)} del contexto`}
+          />
+        ))}
+
+        {ecgi ? (
+          <ContextChip
+            icon={<RadioTower className="h-3 w-3" aria-hidden="true" />}
+            label={`Antena ${ecgi}`}
+            onRemove={onClear}
+            removeLabel="Quitar antena del contexto"
+          />
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function ContextChip({ icon, label, onRemove, removeLabel }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-purple-700 shadow-sm ring-1 ring-purple-100">
+      {icon}
+      <span className="truncate">{label}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="-mr-0.5 rounded-full text-purple-400 transition-colors hover:bg-purple-100 hover:text-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+        aria-label={removeLabel}
+      >
+        <X className="h-3 w-3" aria-hidden="true" />
+      </button>
+    </span>
+  )
+}
+
+function stripMarkdown(text) {
+  return text.replace(/\*\*/g, '').trim()
+}
+
+function parseBullet(text) {
+  const clean = stripMarkdown(text)
+  const match = clean.match(/^([^:]{2,80}):\s*(.+)$/)
+  const label = match ? formatZoneLabel(match[1]) : ''
+  const body = match ? match[2] : clean
+  return {
+    label,
+    text: body,
+    metrics: extractMiniMetrics(body),
+    risk: extractRiskLevel(`${label} ${body}`),
+  }
+}
+
+function sanitizeAssistantText(text) {
+  return (text ?? '')
+    .replace(ZONE_TERM_PATTERN, (match) => {
+      const lower = match.toLowerCase()
+      return lower.endsWith('s') || lower.endsWith('es') ? 'zonas' : 'zona'
+    })
+    .replace(/\b[A-Z0-9]+(?:_[A-Z0-9]+)+\b/g, formatZoneLabel)
+}
+
+function getChatContextRegions(context) {
+  return [...new Set([...(context?.regions ?? []), context?.region].filter(Boolean))]
+}
+
+function buildBackendChatContext(context) {
+  const regions = getChatContextRegions(context)
+
+  return {
+    ...(regions[0] ? { region: regions[0] } : {}),
+    ...(regions.length > 0 ? { regions } : {}),
+    ...(context?.ecgi ? { ecgi: context.ecgi } : {}),
+  }
+}
+
+function formatZoneLabel(value = '') {
+  return value
+    .replace(/_/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      const upper = word.toUpperCase()
+      if (ZONE_WORD_OVERRIDES[upper]) return ZONE_WORD_OVERRIDES[upper]
+      if (/^BR\d+$/i.test(word)) return upper
+      if (/^\d+$/.test(word)) return word
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    })
+    .join(' ')
+}
+
+function extractMiniMetrics(text) {
+  const metrics = []
+  const metricPattern = /(?:\b\d+(?:[.,]\d+)?\s?%|\b\d+(?:[.,]\d+)?\s?(?:usuarios|antenas|km|Mbps|GB|MB)\b|\bscore\s*[:=]?\s*\d+(?:[.,]\d+)?)/gi
+  for (const match of text.matchAll(metricPattern)) {
+    const metric = match[0].replace(/\s+/g, ' ').trim()
+    if (!metrics.includes(metric)) metrics.push(metric)
+    if (metrics.length === 3) break
+  }
+  return metrics
+}
+
+function extractRiskLevel(text) {
+  const match = text.match(/riesgo\s+(alto|medio|bajo)|\b(alto|medio|bajo)\b/i)
+  return match ? (match[1] ?? match[2]).toUpperCase() : ''
+}
+
+function riskBadgeClass(risk) {
+  if (risk === 'ALTO') return 'bg-red-100 text-red-700'
+  if (risk === 'MEDIO') return 'bg-amber-100 text-amber-700'
+  return 'bg-emerald-100 text-emerald-700'
+}
+
+function findRequestedClusters(message, clusterProperties) {
+  if (!MAP_NAVIGATION_PATTERN.test(message) || !clusterProperties) {
+    return []
+  }
+
+  const normalizedMessage = normalizeSearchText(message)
+  const clusters = Object.values(clusterProperties)
+  const zoneMatches = clusters.filter((props) => {
+    const clusterName = props.cluster ?? ''
+    return [clusterName, formatZoneLabel(clusterName)].some((candidate) => textIncludesCandidate(normalizedMessage, candidate))
+  })
+
+  const matches = zoneMatches.length > 0
+    ? zoneMatches
+    : clusters.filter((props) => textIncludesCandidate(normalizedMessage, props.municipio))
+
+  return matches.map((props) => props.cluster).filter(Boolean).slice(0, 3)
+}
+
+function textIncludesCandidate(normalizedText, candidate) {
+  const normalizedCandidate = normalizeSearchText(candidate)
+  return normalizedCandidate.length >= 4 && normalizedText.includes(normalizedCandidate)
+}
+
+function normalizeSearchText(value = '') {
+  return value
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/_/g, ' ')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .toLowerCase()
+    .trim()
 }
 
 const TYPING_PHRASES = [

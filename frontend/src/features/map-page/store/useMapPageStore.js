@@ -1,6 +1,16 @@
 import { create } from 'zustand'
 import { buildClusterDetail } from '../lib/clusterDetail'
 
+const uniqueRegions = (regions) => [...new Set((regions ?? []).filter(Boolean))]
+
+const contextWithRegions = (regions) => {
+  const nextRegions = uniqueRegions(regions)
+  if (nextRegions.length === 0) return null
+  return { regions: nextRegions, region: nextRegions[0] }
+}
+
+const getContextRegions = (context) => uniqueRegions([...(context?.regions ?? []), context?.region])
+
 const useMapPageStore = create((set, get) => ({
   // Selected cluster for detail sheet
   selectedCluster: null,
@@ -19,9 +29,11 @@ const useMapPageStore = create((set, get) => ({
     if (!props) return
 
     const demo = demografiaData?.clusters?.[clusterName]
+    const regions = uniqueRegions([...getContextRegions(get().chatContext), clusterName])
     set({
       selectedCluster: buildClusterDetail(clusterName, demo, props),
-      chatContext: { region: clusterName },
+      chatContext: contextWithRegions(regions),
+      highlightedClusters: regions,
     })
 
     if (mapInstance && props.lng != null && props.lat != null) {
@@ -44,8 +56,39 @@ const useMapPageStore = create((set, get) => ({
 
   // Chat context from map clicks (region or ecgi)
   chatContext: null,
-  setChatContext: (context) => set({ chatContext: context }),
-  clearChatContext: () => set({ chatContext: null }),
+  setChatContext: (context) => {
+    if (!context) {
+      set({ chatContext: null, highlightedClusters: [] })
+      return
+    }
+
+    if (context.region) {
+      const regions = uniqueRegions([...getContextRegions(get().chatContext), context.region])
+      set({ chatContext: contextWithRegions(regions), highlightedClusters: regions })
+      return
+    }
+
+    if (context.regions?.length) {
+      const regions = uniqueRegions(context.regions)
+      set({ chatContext: contextWithRegions(regions), highlightedClusters: regions })
+      return
+    }
+
+    set({ chatContext: context, highlightedClusters: [] })
+  },
+  clearChatContext: () => set({ chatContext: null, highlightedClusters: [] }),
+  addChatRegion: (region) => {
+    const regions = uniqueRegions([...getContextRegions(get().chatContext), region])
+    set({ chatContext: contextWithRegions(regions), highlightedClusters: regions })
+  },
+  removeChatRegion: (region) => {
+    const regions = getContextRegions(get().chatContext).filter((name) => name !== region)
+    set({ chatContext: contextWithRegions(regions), highlightedClusters: regions })
+  },
+  setChatRegions: (regions) => {
+    const nextRegions = uniqueRegions(regions)
+    set({ chatContext: contextWithRegions(nextRegions), highlightedClusters: nextRegions })
+  },
 
   // Zones highlighted by the AI (clusters_destacados from POST /datos).
   // Empty array clears the highlight. When zones arrive, the map makes the
