@@ -4,7 +4,7 @@ import { buildClusterDetail } from './clusterDetail'
 export const filterLayerMap = {
   concentracion: ['concentracion-heatmap-layer'],
   antenas: ['antenas-layer'],
-  clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura', 'clusters-labels', 'clusters-ia-highlight'],
+  clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura', 'clusters-labels', 'clusters-card-highlight', 'clusters-ia-highlight'],
   corredores: ['corredores-layer'],
   instituciones: ['instituciones-layer', 'instituciones-labels'],
 }
@@ -492,7 +492,23 @@ export async function addClustersSourceAndLayer(map) {
     },
   })
 
-  // Blue ring around zones the AI highlights (clusters_destacados).
+  // Purple ring around zones that only have a detail card open (not chat
+  // context). Added before the blue ring so blue wins when a zone is both.
+  map.addLayer({
+    id: 'clusters-card-highlight',
+    type: 'circle',
+    source: 'clusters',
+    filter: ['in', ['get', 'cluster'], ['literal', []]],
+    paint: {
+      'circle-radius': CLUSTER_RADIUS,
+      'circle-color': 'transparent',
+      'circle-stroke-color': '#a855f7',
+      'circle-stroke-width': 3,
+      'circle-pitch-alignment': 'map',
+    },
+  })
+
+  // Blue ring around zones in the chat context / highlighted by the AI.
   // Starts matching nothing; updateIaHighlight() drives the filter.
   map.addLayer({
     id: 'clusters-ia-highlight',
@@ -553,6 +569,37 @@ export function updateIaHighlight(map, clusterNames = []) {
   map.setFilter('clusters-ia-highlight', ['in', ['get', 'cluster'], ['literal', clusterNames]])
 }
 
+/** Ring the zones that only have a detail card open (purple, no chat). */
+export function updateCardHighlight(map, clusterNames = []) {
+  if (!map.getLayer('clusters-card-highlight')) return
+  map.setFilter('clusters-card-highlight', ['in', ['get', 'cluster'], ['literal', clusterNames]])
+}
+
+const CORREDOR_OPACITY_DEFAULT = 0.5
+const CORREDOR_OPACITY_ISOLATED = 0.95
+
+/**
+ * Focus a single mobility flow: filter the corridor layer down to the clicked
+ * origin→destination pair and emphasize it, so the user can read one line
+ * without the other flows overlapping. Passing null restores every corridor.
+ */
+export function setCorredorIsolation(map, feature = null) {
+  if (!map.getLayer('corredores-layer')) return
+
+  if (!feature) {
+    map.setFilter('corredores-layer', null)
+    map.setPaintProperty('corredores-layer', 'line-opacity', CORREDOR_OPACITY_DEFAULT)
+    return
+  }
+
+  map.setFilter('corredores-layer', [
+    'all',
+    ['==', ['get', 'cluster_origem'], feature.properties?.cluster_origem ?? ''],
+    ['==', ['get', 'cluster_destino'], feature.properties?.cluster_destino ?? ''],
+  ])
+  map.setPaintProperty('corredores-layer', 'line-opacity', CORREDOR_OPACITY_ISOLATED)
+}
+
 const INTERACTIVE_LAYERS = ['clusters-layer', 'antenas-layer', 'instituciones-layer', 'corredores-layer']
 
 // Touch-friendly hit area: fingers are ~10px less precise than a cursor
@@ -577,15 +624,30 @@ export function addMapInteractions(map, mapboxgl, getStoreState) {
   })
 
   const selectCluster = (clusterName) => {
-    const { demografiaData, clusterProperties } = getStoreState()
-    const demo = demografiaData?.clusters?.[clusterName]
-    const props = clusterProperties?.[clusterName]
+    const state = getStoreState()
+
+    // Toggle: clicking a zone that is already selected deselects it — closes the
+    // card and drops it from the chat context.
+    if (state.openZones.some((zone) => zone.code === clusterName)) {
+      state.closeZone(clusterName)
+      state.removeChatRegion(clusterName)
+      return
+    }
+
+    const demo = state.demografiaData?.clusters?.[clusterName]
+    const props = state.clusterProperties?.[clusterName]
     if (!demo && !props) return
 
-    getStoreState().setSelectedCluster(buildClusterDetail(clusterName, demo, props))
-    getStoreState().setChatContext({ region: clusterName })
-    getStoreState().openLeftSidebar()
+    state.openZone(buildClusterDetail(clusterName, demo, props))
+    // The zone only joins the chat context when the chat is open (i.e. the user
+    // is actively conversing). Otherwise it is just a detail card.
+    if (state.isLeftSidebarOpen) {
+      state.setChatContext({ region: clusterName })
+    }
   }
+
+  // Restore every corridor when the focused flow's popup is dismissed.
+  infoPopup.on('close', () => setCorredorIsolation(map, null))
 
   map.on('click', (e) => {
     const pad = TAP_TOLERANCE_PX
@@ -595,10 +657,24 @@ export function addMapInteractions(map, mapboxgl, getStoreState) {
     ]
     const layers = INTERACTIVE_LAYERS.filter((id) => map.getLayer(id))
     const features = map.queryRenderedFeatures(bbox, { layers })
-    if (features.length === 0) return
+    if (features.length === 0) {
+      // Clicking empty map exits the isolated-corridor view.
+      setCorredorIsolation(map, null)
+      return
+    }
 
-    // queryRenderedFeatures returns topmost-rendered first, respecting z-order
-    const feature = features[0]
+    // Prefer a zone/point selection over a corridor line when several are under
+    // the tap. Corridors render on top, but clicking a zone bubble should open
+    // its detail even when an (isolated) corridor line crosses it. INTERACTIVE_LAYERS
+    // is ordered by priority: clusters first, corridors last.
+    const feature =
+      INTERACTIVE_LAYERS.map((id) => features.find((f) => f.layer.id === id)).find(Boolean) ??
+      features[0]
+
+    // Any non-corridor interaction brings the full mobility layer back.
+    if (feature.layer.id !== 'corredores-layer') {
+      setCorredorIsolation(map, null)
+    }
 
     if (feature.layer.id === 'clusters-layer') {
       const clusterName = feature.properties?.cluster
@@ -632,10 +708,13 @@ export function addMapInteractions(map, mapboxgl, getStoreState) {
 
     if (feature.layer.id === 'corredores-layer') {
       tooltip.remove()
+      // Open the popup first: reopening it fires a `close` that resets the
+      // isolation, so we must isolate AFTER the popup is in place.
       infoPopup
         .setLngLat(e.lngLat)
         .setHTML(corredorTooltipHtml(feature.properties))
         .addTo(map)
+      setCorredorIsolation(map, feature)
     }
   })
 

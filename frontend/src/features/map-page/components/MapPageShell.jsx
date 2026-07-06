@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { AiChatPanel, MobileAiChatSheet } from '@/features/ai-chat'
 import useMapPageStore from '../store/useMapPageStore'
-import ClusterDetailSheet from './ClusterDetailSheet'
+import ZoneDetailStack from './ZoneDetailStack'
 import MapboxMap from './MapboxMap'
 import MapControlsGroup from './MapControlsGroup'
 import MapLegend from './MapLegend'
@@ -43,7 +43,7 @@ export default function MapPageShell() {
         </div>
       </div>
 
-      <ClusterDetailSheet />
+      <ZoneDetailStack />
       <MapOnboarding />
     </main>
   )

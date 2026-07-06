@@ -11,12 +11,45 @@ const contextWithRegions = (regions) => {
 
 const getContextRegions = (context) => uniqueRegions([...(context?.regions ?? []), context?.region])
 
-const useMapPageStore = create((set, get) => ({
-  // Selected cluster for detail sheet
-  selectedCluster: null,
+const MAX_OPEN_ZONES = 6
 
-  setSelectedCluster: (cluster) => set({ selectedCluster: cluster }),
-  clearSelectedCluster: () => set({ selectedCluster: null }),
+const useMapPageStore = create((set, get) => ({
+  // Multi-zone detail: browser-like tabs along the bottom. `openZones` holds the
+  // detail view models (keyed by `code`) — one tab each. `expandedZoneIds` are
+  // the tabs whose card is deployed upward; several can be open at once.
+  openZones: [],
+  expandedZoneIds: [],
+
+  openZone: (detail) => {
+    if (!detail?.code) return
+    set((state) => {
+      const exists = state.openZones.some((zone) => zone.code === detail.code)
+      let openZones = exists
+        ? state.openZones.map((zone) => (zone.code === detail.code ? detail : zone))
+        : [...state.openZones, detail]
+      if (openZones.length > MAX_OPEN_ZONES) {
+        openZones = openZones.slice(openZones.length - MAX_OPEN_ZONES)
+      }
+      const codes = new Set(openZones.map((zone) => zone.code))
+      const expandedZoneIds = state.expandedZoneIds.filter((code) => codes.has(code))
+      if (!expandedZoneIds.includes(detail.code)) expandedZoneIds.push(detail.code)
+      return { openZones, expandedZoneIds }
+    })
+  },
+  toggleZoneExpanded: (code) =>
+    set((state) => ({
+      expandedZoneIds: state.expandedZoneIds.includes(code)
+        ? state.expandedZoneIds.filter((id) => id !== code)
+        : [...state.expandedZoneIds, code],
+    })),
+  collapseZone: (code) =>
+    set((state) => ({ expandedZoneIds: state.expandedZoneIds.filter((id) => id !== code) })),
+  closeZone: (code) =>
+    set((state) => ({
+      openZones: state.openZones.filter((zone) => zone.code !== code),
+      expandedZoneIds: state.expandedZoneIds.filter((id) => id !== code),
+    })),
+  clearZones: () => set({ openZones: [], expandedZoneIds: [] }),
 
   // Live Mapbox instance (set by MapboxMap on load) for flyTo from search
   mapInstance: null,
@@ -24,17 +57,17 @@ const useMapPageStore = create((set, get) => ({
 
   // Select a zone by cluster name: open its detail sheet and fly the map to it
   selectZone: (clusterName) => {
-    const { clusterProperties, demografiaData, mapInstance } = get()
+    const { clusterProperties, demografiaData, mapInstance, isLeftSidebarOpen } = get()
     const props = clusterProperties?.[clusterName]
     if (!props) return
 
     const demo = demografiaData?.clusters?.[clusterName]
-    const regions = uniqueRegions([...getContextRegions(get().chatContext), clusterName])
-    set({
-      selectedCluster: buildClusterDetail(clusterName, demo, props),
-      chatContext: contextWithRegions(regions),
-      highlightedClusters: regions,
-    })
+    get().openZone(buildClusterDetail(clusterName, demo, props))
+    // Only feed the chat context when the chat is open (see mapLayers selectCluster).
+    if (isLeftSidebarOpen) {
+      const regions = uniqueRegions([...getContextRegions(get().chatContext), clusterName])
+      set({ chatContext: contextWithRegions(regions), highlightedClusters: regions })
+    }
 
     if (mapInstance && props.lng != null && props.lat != null) {
       mapInstance.flyTo({ center: [props.lng, props.lat], zoom: 12.5, duration: 1200 })
@@ -128,9 +161,10 @@ const useMapPageStore = create((set, get) => ({
     )
   },
 
-  // Active filters on the map. Only risk bubbles and the heatmap start
-  // visible; antenas, instituciones and corredores are opt-in toggles to avoid clutter.
-  activeFilters: ['concentracion', 'clusters'],
+  // Active filters on the map. Risk bubbles, the heatmap and public
+  // institutions start visible; antenas and corredores are opt-in toggles
+  // to avoid clutter.
+  activeFilters: ['concentracion', 'clusters', 'instituciones'],
   toggleFilter: (filterId) =>
     set((state) => ({
       activeFilters: state.activeFilters.includes(filterId)
