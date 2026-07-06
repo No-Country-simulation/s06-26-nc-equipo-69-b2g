@@ -128,7 +128,7 @@ export default function AiChatPanel({ isOpen, onToggle }) {
       <button
         type="button"
         onClick={onToggle}
-        className="absolute bottom-5 left-1/2 z-20 hidden h-12 min-w-12 -translate-x-1/2 items-center justify-center gap-2 rounded-full border border-white/40 bg-gradient-to-br from-purple-500 via-purple-700 to-slate-950 px-4 text-xs font-bold text-white shadow-[0_16px_40px_rgba(76,29,149,0.25)] ring-1 ring-purple-200/40 transition-all hover:-translate-x-1/2 hover:-translate-y-0.5 active:-translate-x-1/2 active:translate-y-0 active:scale-95 md:flex"
+        className="absolute right-4 top-4 z-20 hidden h-12 min-w-12 items-center justify-center gap-2 rounded-full border border-white/40 bg-gradient-to-br from-purple-500 via-purple-700 to-slate-950 px-4 text-xs font-bold text-white shadow-[0_16px_40px_rgba(76,29,149,0.25)] ring-1 ring-purple-200/40 transition-all hover:-translate-y-0.5 active:translate-y-0 active:scale-95 md:flex"
         aria-label="Abrir asistente BiT"
       >
         <Sparkles className="h-4 w-4" />
