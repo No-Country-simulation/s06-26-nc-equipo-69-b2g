@@ -14,7 +14,7 @@ const initialMessages = [
 ]
 
 const PANEL_MARGIN = 16
-const RIGHT_ALIGNED_X = Number.MAX_SAFE_INTEGER
+const INITIAL_PANEL_Y = 96
 const MAP_NAVIGATION_PATTERN = /\b(zoom|acerc|mostr|ver|ir|lleva|ubica|ubicá|enfoca|localiza|resalta|marc|señala)\w*\b/i
 const ZONE_TERM_PATTERN = /\b(clusteres|clusters|cluster|clústeres|clústers|clúster)\b/gi
 const ZONE_WORD_OVERRIDES = {
@@ -33,7 +33,7 @@ export default function AiChatPanel({ isOpen, onToggle }) {
   const panelRef = useRef(null)
   const dragStateRef = useRef(null)
   const wasOpenRef = useRef(false)
-  const [position, setPosition] = useState({ x: RIGHT_ALIGNED_X, y: PANEL_MARGIN })
+  const [position, setPosition] = useState({ x: PANEL_MARGIN, y: INITIAL_PANEL_Y })
 
   const clampPosition = useCallback((nextPosition) => {
     const panel = panelRef.current
@@ -59,7 +59,7 @@ export default function AiChatPanel({ isOpen, onToggle }) {
     }
 
     if (!wasOpenRef.current) {
-      setPosition(clampPosition({ x: RIGHT_ALIGNED_X, y: PANEL_MARGIN }))
+      setPosition(clampPosition({ x: PANEL_MARGIN, y: INITIAL_PANEL_Y }))
       wasOpenRef.current = true
     }
   }, [clampPosition, isOpen])
@@ -128,7 +128,7 @@ export default function AiChatPanel({ isOpen, onToggle }) {
       <button
         type="button"
         onClick={onToggle}
-        className="absolute bottom-5 right-20 z-20 hidden h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-white/70 bg-white/90 px-3.5 text-xs font-semibold text-purple-700 shadow-[0_12px_32px_rgba(44,39,80,0.16)] ring-1 ring-purple-100/80 backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-purple-50/95 hover:text-purple-800 active:translate-y-0 active:scale-95 md:flex"
+        className="absolute bottom-5 left-1/2 z-20 hidden h-12 min-w-12 -translate-x-1/2 items-center justify-center gap-2 rounded-full border border-white/40 bg-gradient-to-br from-purple-500 via-purple-700 to-slate-950 px-4 text-xs font-bold text-white shadow-[0_16px_40px_rgba(76,29,149,0.25)] ring-1 ring-purple-200/40 transition-all hover:-translate-x-1/2 hover:-translate-y-0.5 active:-translate-x-1/2 active:translate-y-0 active:scale-95 md:flex"
         aria-label="Abrir asistente BiT"
       >
         <Sparkles className="h-4 w-4" />
@@ -141,7 +141,7 @@ export default function AiChatPanel({ isOpen, onToggle }) {
     <aside
       ref={panelRef}
       className="absolute z-20 hidden max-h-[calc(100%-2rem)] w-[min(calc(100%-2rem),380px)] flex-col rounded-2xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur-md md:flex"
-      style={{ left: position.x, top: position.y, height: 'min(640px, calc(100% - 2rem))' }}
+      style={{ left: position.x, top: position.y, height: 'min(560px, calc(100% - 7rem))' }}
     >
       <AiChatContent
         dragHandleProps={{

@@ -29,7 +29,7 @@ export default function MapPageShell() {
       />
       <MapLegend className="left-3 md:left-4" />
 
-      <div className="pointer-events-none absolute bottom-4 right-4 z-20 flex justify-end md:hidden">
+      <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 justify-center md:hidden">
         <div className="pointer-events-auto rounded-full bg-purple-500/20 p-1 shadow-[0_16px_40px_rgba(76,29,149,0.25)] backdrop-blur-sm">
           <button
             type="button"
