@@ -3,6 +3,7 @@ import { FileDown, Bot, Loader2 } from 'lucide-react'
 import ClusterFilters from '../components/ClusterFilters'
 import ClusterTable from '../components/ClusterTable'
 import AIResponse from '../components/AIResponse'
+import { askTerritorio } from '@/features/ai-chat/api/datosService'
 
 function formatClusterName(name) {
   return name
@@ -14,9 +15,9 @@ function formatClusterName(name) {
 function buildPrompt(clusterNames) {
   const names = clusterNames.map(formatClusterName)
   if (names.length === 1) {
-    return `Analizar la región ${names[0]}: ¿cuál es su nivel de riesgo de exclusión digital y qué factores lo impulsan? Usar SIEMPRE el nombre amigable "${names[0]}" en la tabla y en el texto. NO usar identificadores internos como ${clusterNames[0]}. Responder en el mismo idioma de la pregunta (por defecto español). Responder con una tabla comparativa en markdown que muestre las métricas principales (Score, Usuarios, Infraestructura, Concentración, Vulnerabilidad, Congestión, Nivel de riesgo), seguido de un análisis breve y una sugerencia estratégica.`
+    return `Analizar la zona ${names[0]}: ¿cuál es su nivel de riesgo de exclusión digital y qué factores lo impulsan? Usar SIEMPRE el nombre amigable "${names[0]}" en la tabla y en el texto. NO usar identificadores internos como ${clusterNames[0]}. Responder en el mismo idioma de la pregunta (por defecto español). Responder con una tabla comparativa en markdown que muestre las métricas principales (Score, Usuarios, Infraestructura, Concentración, Vulnerabilidad, Congestión, Nivel de riesgo), seguido de un análisis breve y una sugerencia estratégica.`
   }
-  return `Comparar EXACTAMENTE las siguientes ${names.length} regiones: ${names.join(', ')}. Es OBLIGATORIO: (1) responder en el mismo idioma de la pregunta (por defecto español), (2) incluir TODAS las regiones en la tabla comparativa en formato markdown (Score, Usuarios, Infraestructura, Concentración, Vulnerabilidad, Congestión, Nivel de riesgo), (3) usar SIEMPRE los nombres amigables (${names.join(', ')}) en la tabla y en el texto, (4) NO usar identificadores internos como ${clusterNames.join(', ')}. Después de la tabla, incluir un análisis breve de diferencias clave y una sugerencia estratégica.`
+  return `Comparar EXACTAMENTE las siguientes ${names.length} zonas: ${names.join(', ')}. Es OBLIGATORIO: (1) responder en el mismo idioma de la pregunta (por defecto español), (2) incluir TODAS las zonas en la tabla comparativa en formato markdown (Score, Usuarios, Infraestructura, Concentración, Vulnerabilidad, Congestión, Nivel de riesgo), (3) usar SIEMPRE los nombres amigables (${names.join(', ')}) en la tabla y en el texto, (4) NO usar identificadores internos como ${clusterNames.join(', ')}. Después de la tabla, incluir un análisis breve de diferencias clave y una sugerencia estratégica.`
 }
 
 export default function ClusterComparisonPage() {
@@ -43,13 +44,13 @@ export default function ClusterComparisonPage() {
 
     const count = selected.length
     const messages = [
-      `Analizando ${count} ${count === 1 ? 'región' : 'regiones'} seleccionadas...`,
+      `Analizando ${count} ${count === 1 ? 'zona' : 'zonas'} seleccionadas...`,
       'Consultando métricas de riesgo territorial...',
       'Procesando datos de infraestructura y conectividad...',
       'Cruzando indicadores de vulnerabilidad social...',
       'La IA está generando el análisis comparativo...',
       'Preparando la tabla de resultados...',
-      'Estimando tiempos de respuesta por región...',
+      'Estimando tiempos de respuesta por zona...',
       'La IA está redactando las recomendaciones...',
     ]
 
@@ -102,27 +103,11 @@ export default function ClusterComparisonPage() {
     setAiLoading(true)
     setAiError(null)
     setShowResponse(true)
-    setLoadingMessage(`Analizando ${targetClusters.length} ${targetClusters.length === 1 ? 'región' : 'regiones'} seleccionadas...`)
+    setLoadingMessage(`Analizando ${targetClusters.length} ${targetClusters.length === 1 ? 'zona' : 'zonas'} seleccionadas...`)
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://s06-26-nc-equipo-69-b2g-uxsh.onrender.com'
       const prompt = customPrompt.trim() || buildPrompt(targetClusters)
-
-      const res = await fetch(`${baseUrl}/api/v1/datos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          region: targetClusters[0] || '',
-          ecgi: '',
-          indicator: 'Conectividad',
-          language: 'es',
-        }),
-      })
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-
-      const data = await res.json()
+      const data = await askTerritorio(prompt, { regions: targetClusters })
       setAiResponse(data)
     } catch (err) {
       console.error('AI request failed:', err)
@@ -143,9 +128,9 @@ export default function ClusterComparisonPage() {
     <main className="min-h-full bg-[#F2F3F1] px-4 py-8 sm:px-6 md:px-10 lg:px-12">
       <div className="mx-auto w-full max-w-7xl">
         <div className="mb-6">
-          <h1 className="mb-1 text-xl font-bold text-[#21262B]">Comparar regiones priorizadas</h1>
+          <h1 className="mb-1 text-xl font-bold text-[#21262B]">Comparar zonas priorizadas</h1>
           <p className="text-sm text-[#5B6269]">
-            Regiones ordenadas por riesgo territorial calculado · Dataset CDRView · jun/2026 · ventana de 15 días
+            Zonas ordenadas por riesgo territorial calculado · Dataset CDRView · jun/2026 · ventana de 15 días
           </p>
         </div>
         <section className="rounded-2xl border border-[#E2E4DF] bg-white p-4 shadow-[0_1px_2px_rgba(20,30,35,0.07)] sm:p-5">
@@ -171,8 +156,8 @@ export default function ClusterComparisonPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-900">
                 {selected.length > 0
-                  ? `${selected.length} ${selected.length === 1 ? 'región seleccionada' : 'regiones seleccionadas'}`
-                  : 'Ninguna región seleccionada'}
+                  ? `${selected.length} ${selected.length === 1 ? 'zona seleccionada' : 'zonas seleccionadas'}`
+                  : 'Ninguna zona seleccionada'}
               </span>
               {selected.length > 0 && (
                 <>
@@ -206,7 +191,7 @@ export default function ClusterComparisonPage() {
               type="text"
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder="Escribe tu pregunta sobre las regiones seleccionadas..."
+              placeholder="Escribe tu pregunta sobre las zonas seleccionadas..."
               className="flex-1 rounded-lg border border-[#E2E4DF] bg-[#F5F6F4] px-3 py-1.5 text-xs text-gray-900 placeholder-gray-500 transition-colors focus:border-[#564C8E]/50 focus:bg-white focus:outline-none"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && selected.length > 0) {

@@ -14,7 +14,7 @@ const limits = [
   'Ventana de 15 días (Dataset CDRView · jun/2026).',
   'Datos sintéticos; calidad y congestión son insertas por modelo.',
   'Conectividad estimada, no medida en campo.',
-  'Granularidad por cluster, no por manzana.',
+  'Granularidad por zona (cluster de antenas), no por manzana.',
 ]
 
 export default function SectionBottomRow() {

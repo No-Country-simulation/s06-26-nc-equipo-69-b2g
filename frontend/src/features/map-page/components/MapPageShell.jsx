@@ -2,38 +2,34 @@ import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { AiChatPanel, MobileAiChatSheet } from '@/features/ai-chat'
 import useMapPageStore from '../store/useMapPageStore'
-import ClusterDetailSheet from './ClusterDetailSheet'
+import ZoneDetailStack from './ZoneDetailStack'
 import MapboxMap from './MapboxMap'
 import MapControlsGroup from './MapControlsGroup'
 import MapLegend from './MapLegend'
+import MapOnboarding from './MapOnboarding'
 
 export default function MapPageShell() {
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false)
   const isLeftSidebarOpen = useMapPageStore((s) => s.isLeftSidebarOpen)
   const toggleLeftSidebar = useMapPageStore((s) => s.toggleLeftSidebar)
-  const openMockClusterDetail = useMapPageStore((s) => s.openMockClusterDetail)
+  const selectedPeriodo = useMapPageStore((s) => s.selectedPeriodo)
+  const setSelectedPeriodo = useMapPageStore((s) => s.setSelectedPeriodo)
 
   return (
     <main className="relative h-[calc(100dvh-3.5rem)] min-h-[420px] flex-1 overflow-hidden bg-gray-100 md:h-[calc(100dvh-3rem)]">
-      <MapboxMap />
+      <MapboxMap selectedPeriodo={selectedPeriodo} />
 
-      <AiChatPanel
-        isOpen={isLeftSidebarOpen}
-        onToggle={toggleLeftSidebar}
-        onOpenRecommendedCluster={openMockClusterDetail}
-      />
-      <MobileAiChatSheet
-        open={isMobileChatOpen}
-        onOpenChange={setIsMobileChatOpen}
-        onOpenRecommendedCluster={openMockClusterDetail}
-      />
+      <AiChatPanel isOpen={isLeftSidebarOpen} onToggle={toggleLeftSidebar} />
+      <MobileAiChatSheet open={isMobileChatOpen} onOpenChange={setIsMobileChatOpen} />
 
       <MapControlsGroup
         className="left-3 right-3 md:left-4 md:right-auto"
+        selectedPeriodo={selectedPeriodo}
+        onChangePeriodo={setSelectedPeriodo}
       />
       <MapLegend className="left-3 md:left-4" />
 
-      <div className="pointer-events-none absolute bottom-4 right-4 z-20 flex justify-end md:hidden">
+      <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 justify-center md:hidden">
         <div className="pointer-events-auto rounded-full bg-purple-500/20 p-1 shadow-[0_16px_40px_rgba(76,29,149,0.25)] backdrop-blur-sm">
           <button
             type="button"
@@ -47,7 +43,8 @@ export default function MapPageShell() {
         </div>
       </div>
 
-      <ClusterDetailSheet />
+      <ZoneDetailStack />
+      <MapOnboarding />
     </main>
   )
 }

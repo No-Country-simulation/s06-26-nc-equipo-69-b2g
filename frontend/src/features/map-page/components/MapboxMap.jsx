@@ -1,13 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
+import { getClusters, getConcentracao, getDemografia } from '../api/mapaService'
+import { addAllSourcesAndLayers, addMapInteractions, ensureCorredoresLoaded, updateCardHighlight, updateIaHighlight, updateLayerVisibility } from '../lib/mapLayers'
+import useMapPageStore from '../store/useMapPageStore'
 
 const token = import.meta.env.VITE_API_KEY_MAPBOX
 const useMapbox = import.meta.env.VITE_USE_MAPBOX === 'true'
 
-export default function MapboxMap() {
+export default function MapboxMap({ selectedPeriodo }) {
   const mapContainer = useRef(null)
+  const mapRef = useRef(null)
+  const activeFilters = useMapPageStore((s) => s.activeFilters)
+  const highlightedClusters = useMapPageStore((s) => s.highlightedClusters)
+  const openZones = useMapPageStore((s) => s.openZones)
+  const demografiaData = useMapPageStore((s) => s.demografiaData)
+  const clusterProperties = useMapPageStore((s) => s.clusterProperties)
+  const setDemografiaData = useMapPageStore((s) => s.setDemografiaData)
+  const setClusterProperties = useMapPageStore((s) => s.setClusterProperties)
+  const getStoreState = useMapPageStore.getState
   const [tokenError, setTokenError] = useState(useMapbox && !token)
   const [mapError, setMapError] = useState(null)
   const [loaded, setLoaded] = useState(false)
+
+  const updateVisibility = (map) => {
+    updateLayerVisibility(map, activeFilters)
+  }
 
   useEffect(() => {
     if (!useMapbox || tokenError || !mapContainer.current) return
@@ -49,11 +65,12 @@ export default function MapboxMap() {
 
         mapboxgl.accessToken = token
         setMapError(null)
+        // Whole Florianópolis metro region visible on first load
         map = new mapboxgl.Map({
           container: mapContainer.current,
           style: 'mapbox://styles/mapbox/light-v11',
-          center: [-48.55, -27.59],
-          zoom: 11,
+          center: [-48.6, -27.5],
+          zoom: 9,
         })
 
         map.addControl(new mapboxgl.NavigationControl(), 'bottom-right')
@@ -68,12 +85,52 @@ export default function MapboxMap() {
           window.addEventListener('resize', requestMapResize)
         }
 
-        map.on('load', () => {
+        map.on('load', async () => {
+          mapRef.current = map
+          getStoreState().setMapInstance(map)
           setLoaded(true)
           requestMapResize()
+
+          try {
+            await addAllSourcesAndLayers(map, activeFilters, selectedPeriodo)
+          } catch (err) {
+            console.warn('Could not load map layers:', err)
+            showMapError('No se pudieron cargar los datos del mapa. Verificá la conexión con la API e intentá de nuevo.')
+            return
+          }
+
+          addMapInteractions(map, mapboxgl, getStoreState)
+
+          if (!demografiaData) {
+            try {
+              setDemografiaData(await getDemografia())
+            } catch (err) {
+              console.warn('Could not load demografia data:', err)
+            }
+          }
+
+          if (!clusterProperties) {
+            try {
+              const clustersJson = await getClusters()
+              const propsMap = {}
+              clustersJson.features.forEach((f) => {
+                const name = f.properties?.cluster
+                if (name) {
+                  const [lng, lat] = f.geometry?.coordinates ?? []
+                  propsMap[name] = { ...f.properties, lng, lat }
+                }
+              })
+              setClusterProperties(propsMap)
+            } catch (err) {
+              console.warn('Could not load cluster properties:', err)
+            }
+          }
         })
 
-        map.on('style.load', requestMapResize)
+        map.on('style.load', () => {
+          requestMapResize()
+          updateVisibility(map)
+        })
 
         map.on('error', (e) => {
           if (e.error && ([401, 403].includes(e.error.status) || e.error.message?.includes('401') || e.error.message?.includes('403'))) {
@@ -104,10 +161,41 @@ export default function MapboxMap() {
         window.removeEventListener('resize', requestMapResize)
       }
       if (map) {
+        getStoreState().setMapInstance(null)
         map.remove()
       }
     }
   }, [tokenError])
+
+  useEffect(() => {
+    if (!mapRef.current || !loaded) return
+    updateVisibility(mapRef.current)
+    ensureCorredoresLoaded(mapRef.current, activeFilters)
+  }, [activeFilters, loaded])
+
+  useEffect(() => {
+    if (!mapRef.current || !loaded) return
+    updateIaHighlight(mapRef.current, highlightedClusters)
+    // Card-only zones ring purple; zones already in the chat context ring blue.
+    const cardOnly = openZones
+      .map((zone) => zone.code)
+      .filter((code) => !highlightedClusters.includes(code))
+    updateCardHighlight(mapRef.current, cardOnly)
+  }, [highlightedClusters, openZones, loaded])
+
+  useEffect(() => {
+    if (!mapRef.current || !loaded) return
+    const map = mapRef.current
+    getConcentracao(selectedPeriodo)
+      .then((geojson) => {
+        if (map.getSource('concentracion-heatmap')) {
+          map.getSource('concentracion-heatmap').setData(geojson)
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not refresh concentracao data:', err)
+      })
+  }, [selectedPeriodo, loaded])
 
   return (
     <div className="absolute inset-0 h-full w-full">

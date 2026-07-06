@@ -21,7 +21,7 @@ const indicators = [
 const layers = [
   'Concentración',
   'Antenas / ERBs',
-  'Clusters',
+  'Zonas de riesgo',
   'Calidad de red / congestión',
   'Flujos OD',
   'Corredores / gargalos',

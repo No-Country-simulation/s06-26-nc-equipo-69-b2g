@@ -23,8 +23,12 @@ coverage/
 .turbo/
 **/.turbo/
 mcp.json
+.mcp.json
 docs-spec/
 opencode.json
+
+# Backend-branch working files (not part of the frontend branches)
+etl-pipeline/
 
 # Logs
 *.log
