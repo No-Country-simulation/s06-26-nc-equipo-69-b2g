@@ -46,3 +46,6 @@ node_modules
 
 # CLI tools
 .gh-cli/
+
+# Vercel
+.vercel/
