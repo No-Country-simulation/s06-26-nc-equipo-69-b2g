@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Database, HelpCircle, Search, SlidersHorizontal } from 'lucide-react'
+import { Database, HelpCircle, Search } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { filterConfig } from '../data/filterConfig'
 import useMapPageStore from '../store/useMapPageStore'
@@ -81,7 +81,6 @@ function ZoneSearch() {
 }
 
 export default function MapControlsGroup({ className, selectedPeriodo, onChangePeriodo }) {
-  const [showFilters, setShowFilters] = useState(false)
   const activeFilters = useMapPageStore((s) => s.activeFilters)
   const toggleFilter = useMapPageStore((s) => s.toggleFilter)
   const openOnboarding = useMapPageStore((s) => s.openOnboarding)
@@ -90,16 +89,6 @@ export default function MapControlsGroup({ className, selectedPeriodo, onChangeP
     <div className={cn('pointer-events-none absolute top-3 z-10 flex max-w-[calc(100vw-1.5rem)] flex-col items-start gap-2 transition-[left] duration-200 md:top-4 md:max-w-[calc(100vw-2rem)]', className)}>
       <div className="pointer-events-auto flex flex-wrap items-center gap-2">
         <ZoneSearch />
-
-        <button
-          type="button"
-          aria-expanded={showFilters}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-md transition-colors hover:bg-gray-50"
-          onClick={() => setShowFilters((visible) => !visible)}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filtros
-        </button>
 
         <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-md">
           <Database className="h-3.5 w-3.5 text-gray-400" />
@@ -120,12 +109,9 @@ export default function MapControlsGroup({ className, selectedPeriodo, onChangeP
         </button>
       </div>
 
-      <div
-        className={cn(
-          'pointer-events-auto flex max-w-[min(760px,calc(100vw-2rem))] flex-wrap items-center justify-start gap-1.5 overflow-hidden transition-all duration-200 ease-out',
-          showFilters ? 'max-h-32 translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0 pointer-events-none'
-        )}
-      >
+      {/* Layer toggles are always visible so the available data layers are
+          discoverable without opening a menu. */}
+      <div className="pointer-events-auto flex max-w-[min(760px,calc(100vw-2rem))] flex-wrap items-center justify-start gap-1.5">
         {filterConfig.map((filter) => (
           <FilterPill
             key={filter.id}
