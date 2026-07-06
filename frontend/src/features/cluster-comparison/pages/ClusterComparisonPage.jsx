@@ -114,6 +114,8 @@ export default function ClusterComparisonPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt,
+          region: targetClusters[0] || '',
+          ecgi: '',
           indicator: 'Conectividad',
           language: 'es',
         }),
