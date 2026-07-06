@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { GripHorizontal, Send, Sparkles, X, MapPin, RadioTower } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle } from '@/shared/components/ui/sheet'
 import { askTerritorio } from '../api/datosService'
+import { loadChatMessages, saveChatMessages } from '../api/chatHistoryStore'
 import ModelSelector from './ModelSelector'
 import useMapPageStore from '@/features/map-page/store/useMapPageStore'
 
@@ -177,12 +178,17 @@ function AiChatContent({ dragHandleProps, onClose }) {
   const removeChatRegion = useMapPageStore((s) => s.removeChatRegion)
   const clusterProperties = useMapPageStore((s) => s.clusterProperties)
   const setHighlightedClusters = useMapPageStore((s) => s.setHighlightedClusters)
-  const [messages, setMessages] = useState(initialMessages)
+  // Restore the transcript so closing/reopening the panel doesn't wipe it.
+  const [messages, setMessages] = useState(() => loadChatMessages(initialMessages))
   const [inputValue, setInputValue] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const inputId = useId()
   const scrollAreaRef = useRef(null)
   const chatRegions = getChatContextRegions(chatContext)
+
+  useEffect(() => {
+    saveChatMessages(messages)
+  }, [messages])
 
   useEffect(() => {
     const scrollArea = scrollAreaRef.current
