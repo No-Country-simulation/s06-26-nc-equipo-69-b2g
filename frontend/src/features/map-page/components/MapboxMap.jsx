@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getClusters, getConcentracao, getDemografia } from '../api/mapaService'
-import { addAllSourcesAndLayers, addMapInteractions, ensureCorredoresLoaded, updateLayerVisibility } from '../lib/mapLayers'
+import { addAllSourcesAndLayers, addMapInteractions, ensureCorredoresLoaded, updateIaHighlight, updateLayerVisibility } from '../lib/mapLayers'
 import useMapPageStore from '../store/useMapPageStore'
 
 const token = import.meta.env.VITE_API_KEY_MAPBOX
@@ -10,6 +10,7 @@ export default function MapboxMap({ selectedPeriodo }) {
   const mapContainer = useRef(null)
   const mapRef = useRef(null)
   const activeFilters = useMapPageStore((s) => s.activeFilters)
+  const highlightedClusters = useMapPageStore((s) => s.highlightedClusters)
   const demografiaData = useMapPageStore((s) => s.demografiaData)
   const clusterProperties = useMapPageStore((s) => s.clusterProperties)
   const setDemografiaData = useMapPageStore((s) => s.setDemografiaData)
@@ -170,6 +171,11 @@ export default function MapboxMap({ selectedPeriodo }) {
     updateVisibility(mapRef.current)
     ensureCorredoresLoaded(mapRef.current, activeFilters)
   }, [activeFilters, loaded])
+
+  useEffect(() => {
+    if (!mapRef.current || !loaded) return
+    updateIaHighlight(mapRef.current, highlightedClusters)
+  }, [highlightedClusters, loaded])
 
   useEffect(() => {
     if (!mapRef.current || !loaded) return

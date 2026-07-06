@@ -12,7 +12,6 @@ export default function MapPageShell() {
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false)
   const isLeftSidebarOpen = useMapPageStore((s) => s.isLeftSidebarOpen)
   const toggleLeftSidebar = useMapPageStore((s) => s.toggleLeftSidebar)
-  const openRecommendedClusterDetail = useMapPageStore((s) => s.openRecommendedClusterDetail)
   const selectedPeriodo = useMapPageStore((s) => s.selectedPeriodo)
   const setSelectedPeriodo = useMapPageStore((s) => s.setSelectedPeriodo)
 
@@ -20,16 +19,8 @@ export default function MapPageShell() {
     <main className="relative h-[calc(100dvh-3.5rem)] min-h-[420px] flex-1 overflow-hidden bg-gray-100 md:h-[calc(100dvh-3rem)]">
       <MapboxMap selectedPeriodo={selectedPeriodo} />
 
-      <AiChatPanel
-        isOpen={isLeftSidebarOpen}
-        onToggle={toggleLeftSidebar}
-        onOpenRecommendedCluster={openRecommendedClusterDetail}
-      />
-      <MobileAiChatSheet
-        open={isMobileChatOpen}
-        onOpenChange={setIsMobileChatOpen}
-        onOpenRecommendedCluster={openRecommendedClusterDetail}
-      />
+      <AiChatPanel isOpen={isLeftSidebarOpen} onToggle={toggleLeftSidebar} />
+      <MobileAiChatSheet open={isMobileChatOpen} onOpenChange={setIsMobileChatOpen} />
 
       <MapControlsGroup
         className="left-3 right-3 md:left-4 md:right-auto"

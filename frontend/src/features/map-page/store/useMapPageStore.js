@@ -8,25 +8,6 @@ const useMapPageStore = create((set, get) => ({
   setSelectedCluster: (cluster) => set({ selectedCluster: cluster }),
   clearSelectedCluster: () => set({ selectedCluster: null }),
 
-  // Opens the detail sheet for the highest-risk cluster from the loaded API data
-  openRecommendedClusterDetail: () => {
-    const { clusterProperties, demografiaData } = get()
-    if (!clusterProperties) return
-
-    const allProps = Object.values(clusterProperties)
-    if (allProps.length === 0) return
-
-    const top = allProps.reduce((a, b) =>
-      (b.score_riesgo ?? 0) > (a.score_riesgo ?? 0) ? b : a
-    )
-    const demo = demografiaData?.clusters?.[top.cluster]
-
-    set({
-      selectedCluster: buildClusterDetail(top.cluster, demo, top),
-      chatContext: { region: top.cluster },
-    })
-  },
-
   // Live Mapbox instance (set by MapboxMap on load) for flyTo from search
   mapInstance: null,
   setMapInstance: (map) => set({ mapInstance: map }),
@@ -65,6 +46,44 @@ const useMapPageStore = create((set, get) => ({
   chatContext: null,
   setChatContext: (context) => set({ chatContext: context }),
   clearChatContext: () => set({ chatContext: null }),
+
+  // Zones highlighted by the AI (clusters_destacados from POST /datos).
+  // Empty array clears the highlight. When zones arrive, the map makes the
+  // zones layer visible and flies to frame them.
+  highlightedClusters: [],
+  setHighlightedClusters: (names) => {
+    const highlighted = names ?? []
+    set({ highlightedClusters: highlighted })
+    if (highlighted.length === 0) return
+
+    const { clusterProperties, mapInstance, activeFilters } = get()
+
+    if (!activeFilters.includes('clusters')) {
+      set({ activeFilters: [...activeFilters, 'clusters'] })
+    }
+
+    if (!mapInstance || !clusterProperties) return
+    const coords = highlighted
+      .map((name) => clusterProperties[name])
+      .filter((p) => p?.lng != null && p?.lat != null)
+      .map((p) => [p.lng, p.lat])
+    if (coords.length === 0) return
+
+    if (coords.length === 1) {
+      mapInstance.flyTo({ center: coords[0], zoom: 11.5, duration: 1400 })
+      return
+    }
+
+    const lngs = coords.map((c) => c[0])
+    const lats = coords.map((c) => c[1])
+    mapInstance.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      { padding: 90, duration: 1400, maxZoom: 12 }
+    )
+  },
 
   // Active filters on the map. Only risk bubbles and the heatmap start
   // visible; antenas and corredores are opt-in toggles to avoid clutter.

@@ -4,7 +4,7 @@ import { buildClusterDetail } from './clusterDetail'
 export const filterLayerMap = {
   concentracion: ['concentracion-heatmap-layer'],
   antenas: ['antenas-layer'],
-  clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura', 'clusters-labels'],
+  clusters: ['clusters-layer', 'clusters-outline', 'clusters-sin-cobertura', 'clusters-labels', 'clusters-ia-highlight'],
   corredores: ['corredores-layer'],
 }
 
@@ -329,6 +329,22 @@ export async function addClustersSourceAndLayer(map) {
     },
   })
 
+  // Blue ring around zones the AI highlights (clusters_destacados).
+  // Starts matching nothing; updateIaHighlight() drives the filter.
+  map.addLayer({
+    id: 'clusters-ia-highlight',
+    type: 'circle',
+    source: 'clusters',
+    filter: ['in', ['get', 'cluster'], ['literal', []]],
+    paint: {
+      'circle-radius': CLUSTER_RADIUS,
+      'circle-color': 'transparent',
+      'circle-stroke-color': '#3b82f6',
+      'circle-stroke-width': 3,
+      'circle-pitch-alignment': 'map',
+    },
+  })
+
   map.addLayer({
     id: 'clusters-labels',
     type: 'symbol',
@@ -361,6 +377,12 @@ export async function ensureCorredoresLoaded(map, activeFilters) {
   if (activeFilters.includes('corredores') && !map.getSource('corredores')) {
     await addCorredoresSourceAndLayer(map)
   }
+}
+
+/** Ring the zones the AI highlighted; an empty list clears the highlight. */
+export function updateIaHighlight(map, clusterNames = []) {
+  if (!map.getLayer('clusters-ia-highlight')) return
+  map.setFilter('clusters-ia-highlight', ['in', ['get', 'cluster'], ['literal', clusterNames]])
 }
 
 const INTERACTIVE_LAYERS = ['clusters-layer', 'antenas-layer', 'corredores-layer']

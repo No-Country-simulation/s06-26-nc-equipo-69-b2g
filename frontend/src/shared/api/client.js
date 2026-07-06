@@ -28,3 +28,19 @@ export async function apiGet(path, params) {
 
   return res.json()
 }
+
+export async function apiPost(path, body) {
+  const url = `${BASE_URL}${path}`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  if (!res.ok) {
+    throw new ApiError(`POST ${path} failed with status ${res.status}`, res.status, url)
+  }
+
+  return res.json()
+}

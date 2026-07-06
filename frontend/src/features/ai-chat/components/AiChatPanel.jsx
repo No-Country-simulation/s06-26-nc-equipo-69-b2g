@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { GripHorizontal, Send, Sparkles, X, MapPin } from 'lucide-react'
+import { GripHorizontal, Send, Sparkles, X, MapPin, RadioTower } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle } from '@/shared/components/ui/sheet'
-import { getDemoAiResponse } from '../data/demoAiResponses'
+import { askTerritorio } from '../api/datosService'
 import useMapPageStore from '@/features/map-page/store/useMapPageStore'
 
 const quickActions = [
-  '¿Qué puedo preguntarte?',
-  'Ideas para analizar territorio',
+  '¿Qué zona debería priorizarse?',
+  '¿Dónde hay alta concentración sin cobertura?',
 ]
 
 const initialMessages = [
@@ -14,14 +14,14 @@ const initialMessages = [
     id: 'welcome',
     role: 'assistant',
     content:
-      'Hola, soy el asistente demo de BiT. Puedo ayudarte a explorar preguntas sobre territorio, conectividad, inclusión digital y datos públicos agregados. No estoy conectado a un backend real todavía.',
+      'Hola, soy el asistente BiT. Preguntame sobre riesgo de exclusión digital, calidad de red o movilidad en la región. Si hacés click en una zona o antena del mapa, uso esa selección como contexto.',
   },
 ]
 
 const PANEL_MARGIN = 16
 const RIGHT_ALIGNED_X = Number.MAX_SAFE_INTEGER
 
-export default function AiChatPanel({ isOpen, onToggle, onOpenRecommendedCluster }) {
+export default function AiChatPanel({ isOpen, onToggle }) {
   const panelRef = useRef(null)
   const dragStateRef = useRef(null)
   const wasOpenRef = useRef(false)
@@ -143,13 +143,12 @@ export default function AiChatPanel({ isOpen, onToggle, onOpenRecommendedCluster
           onPointerCancel: handleDragEnd,
         }}
         onClose={onToggle}
-        onOpenRecommendedCluster={onOpenRecommendedCluster}
       />
     </aside>
   )
 }
 
-export function MobileAiChatSheet({ open, onOpenChange, onOpenRecommendedCluster }) {
+export function MobileAiChatSheet({ open, onOpenChange }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -157,24 +156,21 @@ export function MobileAiChatSheet({ open, onOpenChange, onOpenRecommendedCluster
         className="w-[min(92vw,380px)] gap-0 overflow-hidden rounded-r-2xl border-r border-gray-200 bg-white/95 p-0 shadow-2xl backdrop-blur-md sm:max-w-[380px]"
       >
         <SheetTitle className="sr-only">Asistente BiT</SheetTitle>
-        <AiChatContent
-          onClose={() => onOpenChange(false)}
-          onOpenRecommendedCluster={onOpenRecommendedCluster}
-        />
+        <AiChatContent onClose={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>
   )
 }
 
-function AiChatContent({ dragHandleProps, onClose, onOpenRecommendedCluster }) {
+function AiChatContent({ dragHandleProps, onClose }) {
   const chatContext = useMapPageStore((s) => s.chatContext)
   const clearChatContext = useMapPageStore((s) => s.clearChatContext)
+  const setHighlightedClusters = useMapPageStore((s) => s.setHighlightedClusters)
   const [messages, setMessages] = useState(initialMessages)
   const [inputValue, setInputValue] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const inputId = useId()
   const scrollAreaRef = useRef(null)
-  const responseTimeoutRef = useRef(null)
 
   useEffect(() => {
     const scrollArea = scrollAreaRef.current
@@ -186,16 +182,8 @@ function AiChatContent({ dragHandleProps, onClose, onOpenRecommendedCluster }) {
     scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' })
   }, [messages, isTyping])
 
-  useEffect(() => {
-    return () => {
-      if (responseTimeoutRef.current) {
-        window.clearTimeout(responseTimeoutRef.current)
-      }
-    }
-  }, [])
-
   const handleSendMessage = useCallback(
-    (message = inputValue) => {
+    async (message = inputValue) => {
       const trimmedMessage = message.trim()
 
       if (!trimmedMessage || isTyping) {
@@ -212,20 +200,39 @@ function AiChatContent({ dragHandleProps, onClose, onOpenRecommendedCluster }) {
       setInputValue('')
       setIsTyping(true)
 
-      responseTimeoutRef.current = window.setTimeout(() => {
+      try {
+        const res = await askTerritorio(trimmedMessage, chatContext ?? {})
+
+        // Sync the map: highlight (or clear) the zones the AI mentions
+        setHighlightedClusters(res.clusters_destacados ?? [])
+
         setMessages((currentMessages) => [
           ...currentMessages,
           {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: getDemoAiResponse(trimmedMessage),
+            content: res.respuesta_ia ?? 'No obtuve respuesta. Intentá de nuevo.',
+            fuentes: res.fuentes ?? [],
+            destacados: res.clusters_destacados ?? [],
           },
         ])
+      } catch (err) {
+        console.warn('POST /datos failed:', err)
+        setMessages((currentMessages) => [
+          ...currentMessages,
+          {
+            id: `assistant-error-${Date.now()}`,
+            role: 'assistant',
+            content:
+              'No pude consultar los datos en este momento. Verificá tu conexión e intentá de nuevo en unos segundos.',
+            isError: true,
+          },
+        ])
+      } finally {
         setIsTyping(false)
-        responseTimeoutRef.current = null
-      }, 650)
+      }
     },
-    [inputValue, isTyping],
+    [inputValue, isTyping, chatContext, setHighlightedClusters],
   )
 
   const handleInputKeyDown = (event) => {
@@ -256,19 +263,23 @@ function AiChatContent({ dragHandleProps, onClose, onOpenRecommendedCluster }) {
             </p>
             <p className="text-[10px] text-gray-400">
               <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
-              modo demo local
+              conectado a Visent CDRView
             </p>
           </div>
         </div>
-        {chatContext?.region ? (
+        {chatContext?.region || chatContext?.ecgi ? (
           <div className="flex items-center gap-1.5 rounded-full bg-purple-50 px-2.5 py-1 text-[10px] font-medium text-purple-700">
-            <MapPin className="h-3 w-3" />
-            <span>{chatContext.region.replace(/_/g, ' ')}</span>
+            {chatContext.region ? <MapPin className="h-3 w-3" /> : <RadioTower className="h-3 w-3" />}
+            <span>
+              {chatContext.region
+                ? chatContext.region.replace(/_/g, ' ')
+                : `Antena ${chatContext.ecgi}`}
+            </span>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); clearChatContext(); }}
               className="ml-1 text-purple-400 hover:text-purple-700"
-              aria-label="Quitar contexto de región"
+              aria-label="Quitar contexto de la consulta"
             >
               <X className="h-3 w-3" />
             </button>
@@ -327,16 +338,6 @@ function AiChatContent({ dragHandleProps, onClose, onOpenRecommendedCluster }) {
             className="min-w-0 flex-1 bg-transparent text-xs text-gray-600 placeholder-gray-400 outline-none"
             disabled={isTyping}
           />
-          {onOpenRecommendedCluster ? (
-            <button
-              type="button"
-              onClick={onOpenRecommendedCluster}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-purple-200 bg-purple-50 text-purple-700 transition-colors hover:bg-purple-100"
-              aria-label="Abrir demo de detalle territorial"
-            >
-              <Sparkles className="h-3 w-3" />
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={() => handleSendMessage()}
@@ -367,17 +368,123 @@ function ChatMessage({ message }) {
         style={isUser ? { backgroundColor: 'var(--bit-purple-deep)' } : undefined}
       >
         {!isUser ? <p className="mb-1 text-[10px] font-semibold text-gray-700">Asistente BiT</p> : null}
-        <p>{message.content}</p>
+        {isUser ? <p>{message.content}</p> : <AssistantText content={message.content} />}
+
+        {message.destacados?.length > 0 ? (
+          <p className="mt-1.5 text-[10px] text-blue-600">
+            ● {message.destacados.length === 1 ? 'Zona resaltada' : `${message.destacados.length} zonas resaltadas`} en el mapa
+          </p>
+        ) : null}
+
+        {message.fuentes?.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1 border-t border-gray-200/70 pt-1.5">
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">Fuentes:</span>
+            {message.fuentes.map((fuente) => (
+              <span
+                key={fuente}
+                className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[9px] text-gray-500"
+              >
+                {fuente}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   )
 }
 
+/**
+ * Renders the AI answer as readable blocks: consecutive "- " lines become a
+ * bullet list and the closing "Sugerencia Estratégica" gets its own callout.
+ */
+function AssistantText({ content }) {
+  const lines = (content ?? '').split('\n')
+  const blocks = []
+  let bullets = []
+
+  const flushBullets = () => {
+    if (bullets.length > 0) {
+      blocks.push({ type: 'list', items: bullets })
+      bullets = []
+    }
+  }
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim()
+    if (!line) return
+
+    if (line.startsWith('- ') || line.startsWith('• ')) {
+      bullets.push(line.slice(2).trim())
+      return
+    }
+
+    flushBullets()
+    if (/^sugerencia estratégica/i.test(line)) {
+      blocks.push({ type: 'suggestion', text: line.replace(/^sugerencia estratégica:?\s*/i, '') })
+      return
+    }
+    blocks.push({ type: 'paragraph', text: line })
+  })
+  flushBullets()
+
+  return (
+    <div className="space-y-2">
+      {blocks.map((block, i) => {
+        if (block.type === 'list') {
+          return (
+            <ul key={i} className="space-y-1.5">
+              {block.items.map((item, j) => (
+                <li key={j} className="flex gap-1.5">
+                  <span className="mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full bg-purple-300" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+        if (block.type === 'suggestion') {
+          return (
+            <div key={i} className="rounded-lg border-l-[3px] border-green-500 bg-green-50/70 px-2.5 py-2">
+              <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-green-700">
+                Sugerencia estratégica
+              </p>
+              <p className="text-gray-700">{block.text}</p>
+            </div>
+          )
+        }
+        return <p key={i}>{block.text}</p>
+      })}
+    </div>
+  )
+}
+
+const TYPING_PHRASES = [
+  'Consultando los datos del territorio…',
+  'Cruzando riesgo, red y demografía…',
+  'Analizando las zonas relevantes…',
+  'Preparando la respuesta…',
+]
+
 function TypingIndicator() {
+  const [phraseIndex, setPhraseIndex] = useState(0)
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setPhraseIndex((i) => (i + 1) % TYPING_PHRASES.length)
+    }, 2500)
+    return () => window.clearInterval(interval)
+  }, [])
+
   return (
     <div className="flex justify-start">
-      <div className="rounded-xl rounded-tl-sm border border-gray-100 bg-gray-50/80 px-3 py-2 text-xs text-gray-500">
-        Asistente escribiendo…
+      <div className="flex items-center gap-2 rounded-xl rounded-tl-sm border border-gray-100 bg-gray-50/80 px-3 py-2 text-xs text-gray-500">
+        <span className="flex gap-0.5">
+          <span className="h-1 w-1 animate-bounce rounded-full bg-purple-400 [animation-delay:0ms]" />
+          <span className="h-1 w-1 animate-bounce rounded-full bg-purple-400 [animation-delay:150ms]" />
+          <span className="h-1 w-1 animate-bounce rounded-full bg-purple-400 [animation-delay:300ms]" />
+        </span>
+        {TYPING_PHRASES[phraseIndex]}
       </div>
     </div>
   )
