@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { env } from '../config/env.js';
+import { getCurrentModel } from './model.registry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const systemPromptDocument = readFileSync(join(__dirname, '../../../docs/Prompt_IA.md'), 'utf-8');
@@ -31,7 +32,9 @@ export async function callOpenRouter(userMessage) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: env.OPENROUTER_MODEL,
+        // Runtime-selected model (see model.registry.js). Falls back to the
+        // env default until the user changes it from the chat.
+        model: getCurrentModel(),
         // Cap length: the system prompt asks for ~120 words, but some models
         // (e.g. DeepSeek) ignore it and ramble, which raises latency and trips
         // the frontend request timeout. max_tokens is the hard guardrail.
