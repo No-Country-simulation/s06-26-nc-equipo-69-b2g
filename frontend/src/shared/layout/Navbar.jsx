@@ -1,6 +1,7 @@
 import { BarChart3, BookOpen, Download, Map, Menu } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/shared/components/ui/sheet'
+import { AuthControl } from '@/features/auth'
 
 const navLinks = [
   { label: 'Mapa', icon: Map, path: '/mapa' },
@@ -56,12 +57,7 @@ export default function Navbar() {
           <Download className="h-3.5 w-3.5" />
           Exportar reporte
         </button>
-        <div
-          className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-        >
-          <span className="text-white">GP</span>
-        </div>
+        <AuthControl />
       </div>
 
       {/* Mobile hamburger */}
@@ -126,17 +122,9 @@ export default function Navbar() {
                   Exportar reporte
                 </button>
               </SheetClose>
-              <div className="mt-4 flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold"
-                  style={{ backgroundColor: 'rgba(86,76,142,0.2)' }}
-                >
-                  <span style={{ color: '#564C8E' }}>GP</span>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">GP</p>
-                  <p className="text-xs text-gray-500">Usuario activo</p>
-                </div>
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <span className="text-xs font-medium text-gray-500">Sesión</span>
+                <AuthControl variant="light" />
               </div>
             </div>
           </div>

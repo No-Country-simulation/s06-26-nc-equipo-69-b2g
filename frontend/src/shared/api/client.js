@@ -1,4 +1,13 @@
+import { getAuthToken } from './authToken'
+
 const BASE_URL = import.meta.env.VITE_API_URL || ''
+
+// Attach the backend JWT when the user is authenticated. Public endpoints
+// ignore it; protected ones require it.
+function authHeaders() {
+  const token = getAuthToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 export class ApiError extends Error {
   constructor(message, status, url) {
@@ -23,7 +32,10 @@ export async function apiGet(path, params) {
   const query = params ? `?${new URLSearchParams(params)}` : ''
   const url = `${BASE_URL}${path}${query}`
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+  const res = await fetch(url, {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
   if (!res.ok) {
     throw new ApiError(`GET ${path} failed with status ${res.status}`, res.status, url)
   }
@@ -36,7 +48,7 @@ export async function apiPost(path, body) {
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })

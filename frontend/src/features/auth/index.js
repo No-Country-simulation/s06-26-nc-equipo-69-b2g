@@ -1,1 +1,3 @@
-// Public exports for the auth feature will live here.
+export { default as AuthControl } from './components/AuthControl'
+export { useAuthListener } from './hooks/useAuthListener'
+export { default as useAuthStore } from './store/useAuthStore'

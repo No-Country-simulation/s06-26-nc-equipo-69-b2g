@@ -4,9 +4,12 @@ import LandingPage from '@/features/landing-page/LandingPage'
 import MethodologyPage from '@/features/methodology-page/MethodologyPage'
 import MapPage from '@/features/map-page/pages/MapPage'
 import ClusterComparisonPage from '@/features/cluster-comparison/pages/ClusterComparisonPage'
+import { useAuthListener } from '@/features/auth'
 import '../App.css'
 
 function App() {
+  useAuthListener()
+
   return (
     <BrowserRouter>
       <div className="flex min-h-dvh flex-col">
