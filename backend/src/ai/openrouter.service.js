@@ -5,9 +5,10 @@ import { env } from '../config/env.js';
 import { getCurrentModel } from './model.registry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const systemPromptDocument = readFileSync(join(__dirname, '../../../docs/Prompt_IA.md'), 'utf-8');
-const SYSTEM_PROMPT =
-  systemPromptDocument.match(/```text\n([\s\S]*?)\n```/)?.[1]?.trim() ?? systemPromptDocument;
+// The system prompt is source-of-truth code, co-located in the AI module.
+// The whole file is the prompt (no markdown fence, no regex). docs/Prompt_IA.md
+// only documents the rationale behind it.
+const SYSTEM_PROMPT = readFileSync(join(__dirname, 'system-prompt.md'), 'utf-8').trim();
 
 // Upstream (OpenRouter/provider) can hang or queue a request indefinitely.
 // Without a server-side timeout the fetch never resolves and the whole HTTP
