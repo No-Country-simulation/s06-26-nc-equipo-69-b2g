@@ -94,7 +94,7 @@ export default function AIResponse({ response, loading, error, selectedClusters,
           <Loader2 className="h-5 w-5 animate-spin text-[#564C8E]" />
           <div>
             <p className="text-sm font-medium text-gray-900">Consultando a la IA...</p>
-            <p className="text-xs text-gray-500">Analizando {selectedClusters.length} {selectedClusters.length === 1 ? 'región' : 'regiones'} seleccionadas</p>
+            <p className="text-xs text-gray-500">Analizando {selectedClusters.length} {selectedClusters.length === 1 ? 'zona' : 'zonas'} seleccionadas</p>
           </div>
         </div>
       </div>
@@ -146,12 +146,12 @@ export default function AIResponse({ response, loading, error, selectedClusters,
 
       {/* Metadata */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {/* Clusters destacados */}
+        {/* Zonas destacadas */}
         {response.clusters_destacados && response.clusters_destacados.length > 0 && (
           <div className="rounded-lg border border-[#E2E4DF] bg-[#F9FAF8] p-3">
             <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               <Layers className="h-3 w-3" />
-              Regiones destacadas
+              Zonas destacadas
             </div>
             <div className="flex flex-wrap gap-1">
               {response.clusters_destacados.map((c) => (
@@ -176,7 +176,7 @@ export default function AIResponse({ response, loading, error, selectedClusters,
             <div className="space-y-0.5">
               {response.datos_extra.regiones_riesgo && (
                 <p className="text-xs text-gray-700">
-                  <span className="font-medium">{response.datos_extra.regiones_riesgo}</span> regiones en riesgo
+                  <span className="font-medium">{response.datos_extra.regiones_riesgo}</span> zonas en riesgo
                 </p>
               )}
               {response.datos_extra.antenas_encontradas && (
