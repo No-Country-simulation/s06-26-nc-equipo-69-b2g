@@ -26,6 +26,15 @@ export function concentracaoToGeoJson(rows, periodo) {
   };
 }
 
+export function equipamentosToGeoJson(rows) {
+  return {
+    type: 'FeatureCollection',
+    features: rows.map(({ lat, lon, nome, tipo, categoria, source, source_id }) =>
+      pointFeature(lon, lat, { nome, tipo, categoria, source, source_id })
+    ),
+  };
+}
+
 export function odToGeoJson(rows) {
   return {
     type: 'FeatureCollection',

@@ -95,6 +95,59 @@ describe('GET /api/v1/mapa/concentracao', () => {
   });
 });
 
+describe('GET /api/v1/mapa/equipamentos', () => {
+  const equipamentoRow = {
+    nome: 'Escola Municipal Centro',
+    tipo: 'school',
+    categoria: 'educacion',
+    source: 'osm',
+    source_id: 'way/456',
+    lat: -27.602,
+    lon: -48.548,
+  };
+
+  it('returns public facilities as a GeoJSON FeatureCollection', async () => {
+    supabase.from = vi.fn().mockReturnValue(mockSelectChain({ data: [equipamentoRow], error: null }));
+
+    const res = await request.get('/api/v1/mapa/equipamentos');
+
+    expect(res.status).toBe(200);
+    expect(supabase.from).toHaveBeenCalledWith('equipamentos_publicos');
+    expect(res.body.type).toBe('FeatureCollection');
+    expect(res.body.features[0].geometry).toEqual({
+      type: 'Point',
+      coordinates: [-48.548, -27.602],
+    });
+    expect(res.body.features[0].properties).toEqual({
+      nome: 'Escola Municipal Centro',
+      tipo: 'school',
+      categoria: 'educacion',
+      source: 'osm',
+      source_id: 'way/456',
+    });
+  });
+
+  it('filters by valid categoria values', async () => {
+    const chain = mockSelectChain({ data: [equipamentoRow], error: null });
+    supabase.from = vi.fn().mockReturnValue(chain);
+
+    const res = await request.get('/api/v1/mapa/equipamentos?categoria=educacion');
+
+    expect(res.status).toBe(200);
+    expect(chain.eq).toHaveBeenCalledWith('categoria', 'educacion');
+  });
+
+  it('rejects invalid categoria values with 400', async () => {
+    supabase.from = vi.fn();
+
+    const res = await request.get('/api/v1/mapa/equipamentos?categoria=seguridad');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('categoria debe ser una de');
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+});
+
 describe('GET /api/v1/mapa/od', () => {
   it('returns LineString features filtered to inter-cluster flows', async () => {
     const odRow = {

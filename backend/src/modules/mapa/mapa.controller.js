@@ -2,11 +2,13 @@ import { supabase } from '../../lib/supabase.js';
 import {
   clustersToGeoJson,
   concentracaoToGeoJson,
+  equipamentosToGeoJson,
   odToGeoJson,
   demografiaToResponse,
 } from './mapa.transformers.js';
 
 const PERIODOS = ['MADRUGADA', 'MANHA', 'TARDE', 'NOITE'];
+const CATEGORIAS_EQUIPAMENTOS = ['salud', 'educacion', 'asistencia', 'gobierno'];
 
 // tensor_od has ~506 inter-cluster rows; cap keeps the payload bounded if data grows.
 const OD_MAX_FEATURES = 500;
@@ -40,6 +42,35 @@ export async function getConcentracao(req, res, next) {
     if (error) throw error;
 
     res.json(concentracaoToGeoJson(data ?? [], periodo));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getEquipamentos(req, res, next) {
+  try {
+    const categoria = req.query.categoria ? String(req.query.categoria).toLowerCase() : null;
+
+    if (categoria && !CATEGORIAS_EQUIPAMENTOS.includes(categoria)) {
+      return res.status(400).json({
+        error: `categoria debe ser una de: ${CATEGORIAS_EQUIPAMENTOS.join(', ')}`,
+      });
+    }
+
+    let query = supabase
+      .from('equipamentos_publicos')
+      .select('nome, tipo, categoria, source, source_id, lat, lon')
+      .order('categoria', { ascending: true })
+      .order('nome', { ascending: true });
+
+    if (categoria) {
+      query = query.eq('categoria', categoria);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json(equipamentosToGeoJson(data ?? []));
   } catch (err) {
     next(err);
   }

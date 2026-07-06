@@ -1,6 +1,7 @@
 import {
   clustersToGeoJson,
   concentracaoToGeoJson,
+  equipamentosToGeoJson,
   odToGeoJson,
   demografiaToResponse,
 } from '../modules/mapa/mapa.transformers.js';
@@ -87,6 +88,39 @@ describe('concentracaoToGeoJson', () => {
       congestion_media: 0.35,
       drop_pct_media: 0.069,
     });
+  });
+});
+
+describe('equipamentosToGeoJson', () => {
+  const row = {
+    nome: 'Hospital Regional',
+    tipo: 'hospital',
+    categoria: 'salud',
+    source: 'osm',
+    source_id: 'node/123',
+    lat: -27.591,
+    lon: -48.552,
+    tags: { amenity: 'hospital' },
+  };
+
+  it('builds public facility Point features in [lon, lat] order', () => {
+    const fc = equipamentosToGeoJson([row]);
+
+    expect(fc.type).toBe('FeatureCollection');
+    expect(fc.features[0].geometry).toEqual({ type: 'Point', coordinates: [-48.552, -27.591] });
+  });
+
+  it('exposes only map-safe facility properties', () => {
+    const { properties } = equipamentosToGeoJson([row]).features[0];
+
+    expect(properties).toEqual({
+      nome: 'Hospital Regional',
+      tipo: 'hospital',
+      categoria: 'salud',
+      source: 'osm',
+      source_id: 'node/123',
+    });
+    expect(properties.tags).toBeUndefined();
   });
 });
 
