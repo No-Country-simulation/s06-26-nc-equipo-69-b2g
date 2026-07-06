@@ -6,6 +6,21 @@ import useMapPageStore from '../store/useMapPageStore'
 const token = import.meta.env.VITE_API_KEY_MAPBOX
 const useMapbox = import.meta.env.VITE_USE_MAPBOX === 'true'
 
+// Two base map modes: the flat light dashboard look and the Mapbox Standard
+// 3D style with dusk lighting (3D buildings + atmosphere). Custom data layers
+// are re-added after every style switch because setStyle wipes them.
+const MAP_STYLES = {
+  light: {
+    style: 'mapbox://styles/mapbox/light-v11',
+    camera: { pitch: 0, bearing: 0, duration: 900 },
+  },
+  dusk3d: {
+    style: 'mapbox://styles/mapbox/standard',
+    config: { basemap: { lightPreset: 'dusk' } },
+    camera: { pitch: 55, bearing: -17, duration: 1600 },
+  },
+}
+
 export default function MapboxMap({ selectedPeriodo }) {
   const mapContainer = useRef(null)
   const mapRef = useRef(null)
@@ -20,6 +35,13 @@ export default function MapboxMap({ selectedPeriodo }) {
   const [tokenError, setTokenError] = useState(useMapbox && !token)
   const [mapError, setMapError] = useState(null)
   const [loaded, setLoaded] = useState(false)
+  const [styleMode, setStyleMode] = useState('light')
+  const appliedStyleModeRef = useRef('light')
+  const selectedPeriodoRef = useRef(selectedPeriodo)
+
+  useEffect(() => {
+    selectedPeriodoRef.current = selectedPeriodo
+  }, [selectedPeriodo])
 
   const updateVisibility = (map) => {
     updateLayerVisibility(map, activeFilters)
@@ -68,7 +90,7 @@ export default function MapboxMap({ selectedPeriodo }) {
         // Whole Florianópolis metro region visible on first load
         map = new mapboxgl.Map({
           container: mapContainer.current,
-          style: 'mapbox://styles/mapbox/light-v11',
+          style: MAP_STYLES.light.style,
           center: [-48.6, -27.5],
           zoom: 9,
         })
@@ -173,6 +195,37 @@ export default function MapboxMap({ selectedPeriodo }) {
     ensureCorredoresLoaded(mapRef.current, activeFilters)
   }, [activeFilters, loaded])
 
+  // Base style switch (2D light <-> 3D dusk). setStyle drops every custom
+  // source/layer, so they are re-added once the new style finishes loading;
+  // layer-scoped interactions survive because they are bound by layer id.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !loaded) return
+
+    if (appliedStyleModeRef.current === styleMode) return
+    appliedStyleModeRef.current = styleMode
+
+    const def = MAP_STYLES[styleMode]
+    map.setStyle(def.style, def.config ? { config: def.config } : undefined)
+    map.once('style.load', async () => {
+      const store = getStoreState()
+      try {
+        await addAllSourcesAndLayers(map, store.activeFilters, selectedPeriodoRef.current)
+      } catch (err) {
+        console.warn('Could not reload map layers after style change:', err)
+        return
+      }
+      updateLayerVisibility(map, store.activeFilters)
+      updateIaHighlight(map, store.highlightedClusters)
+      const cardOnly = store.openZones
+        .map((zone) => zone.code)
+        .filter((code) => !store.highlightedClusters.includes(code))
+      updateCardHighlight(map, cardOnly)
+    })
+    map.easeTo(def.camera)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [styleMode, loaded])
+
   useEffect(() => {
     if (!mapRef.current || !loaded) return
     updateIaHighlight(mapRef.current, highlightedClusters)
@@ -218,6 +271,34 @@ export default function MapboxMap({ selectedPeriodo }) {
       ) : (
         <>
           <div ref={mapContainer} className="h-full w-full" />
+          {loaded && !mapError ? (
+            <div className="absolute bottom-2.5 right-12 z-10 flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-md">
+              <button
+                type="button"
+                onClick={() => setStyleMode('light')}
+                title="Mapa claro 2D"
+                aria-pressed={styleMode === 'light'}
+                className={`px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                  styleMode === 'light' ? 'text-white' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+                style={styleMode === 'light' ? { backgroundColor: 'var(--bit-purple-deep)' } : undefined}
+              >
+                2D
+              </button>
+              <button
+                type="button"
+                onClick={() => setStyleMode('dusk3d')}
+                title="Vista 3D atardecer"
+                aria-pressed={styleMode === 'dusk3d'}
+                className={`px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                  styleMode === 'dusk3d' ? 'text-white' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+                style={styleMode === 'dusk3d' ? { backgroundColor: 'var(--bit-purple-deep)' } : undefined}
+              >
+                3D
+              </button>
+            </div>
+          ) : null}
           {mapError ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 p-6 text-center">
               <span className="text-4xl">⚠️</span>
