@@ -18,7 +18,7 @@ const envSchema = z
     DIRECT_URL: z.string().min(1).optional(),
     // AI / RAG (optional: services degrade to mock/no-RAG when absent).
     OPENROUTER_API_KEY: z.string().optional(),
-    OPENROUTER_MODEL: z.string().default('openrouter/free'),
+    OPENROUTER_MODEL: z.string().default('deepseek/deepseek-chat-v3-0324'),
     EMBED_MODEL: z.string().default('nvidia/llama-nemotron-embed-vl-1b-v2:free'),
     // Session token exchange: the backend signs its own JWT after validating the
     // Supabase login (see modules/auth). Generate with: openssl rand -base64 48

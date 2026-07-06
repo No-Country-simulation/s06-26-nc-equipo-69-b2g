@@ -8,6 +8,12 @@ const systemPromptDocument = readFileSync(join(__dirname, '../../../docs/Prompt_
 const SYSTEM_PROMPT =
   systemPromptDocument.match(/```text\n([\s\S]*?)\n```/)?.[1]?.trim() ?? systemPromptDocument;
 
+// Upstream (OpenRouter/provider) can hang or queue a request indefinitely.
+// Without a server-side timeout the fetch never resolves and the whole HTTP
+// request hangs. Abort well under the frontend request timeout so the client
+// receives a clean error instead of waiting forever.
+const OPENROUTER_TIMEOUT_MS = 45_000;
+
 export async function callOpenRouter(userMessage) {
   if (!env.OPENROUTER_API_KEY) {
     return {
@@ -16,20 +22,37 @@ export async function callOpenRouter(userMessage) {
     };
   }
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: env.OPENROUTER_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-    }),
-  });
+  let response;
+  try {
+    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: env.OPENROUTER_MODEL,
+        // Cap length: the system prompt asks for ~120 words, but some models
+        // (e.g. DeepSeek) ignore it and ramble, which raises latency and trips
+        // the frontend request timeout. max_tokens is the hard guardrail.
+        max_tokens: 700,
+        temperature: 0.5,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userMessage },
+        ],
+      }),
+      signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+      throw new Error(
+        `OpenRouter request timed out after ${OPENROUTER_TIMEOUT_MS / 1000}s (provider hung or queued)`,
+        { cause: err }
+      );
+    }
+    throw new Error(`OpenRouter request failed: ${err?.message ?? err}`, { cause: err });
+  }
 
   if (!response.ok) {
     const body = await response.text().catch(() => '');
