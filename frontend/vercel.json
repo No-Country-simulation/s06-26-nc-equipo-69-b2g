@@ -3,5 +3,6 @@
   "framework": "vite",
   "installCommand": "cd .. && pnpm install",
   "buildCommand": "cd .. && pnpm turbo build --filter=frontend",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
