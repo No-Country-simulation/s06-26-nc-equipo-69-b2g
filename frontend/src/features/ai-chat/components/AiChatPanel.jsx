@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { GripHorizontal, Send, Sparkles, X, MapPin, RadioTower } from 'lucide-react'
+import { GripHorizontal, Lock, Plus, Send, Sparkles, Trash2, X, MapPin, RadioTower } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle } from '@/shared/components/ui/sheet'
 import { askTerritorio } from '../api/datosService'
-import { loadChatMessages, saveChatMessages } from '../api/chatHistoryStore'
+import {
+  getConversations,
+  getConversationMessages,
+  deleteConversation,
+} from '../api/conversationsService'
 import ModelSelector from './ModelSelector'
 import useMapPageStore from '@/features/map-page/store/useMapPageStore'
+import useAuthStore from '@/features/auth/store/useAuthStore'
+import { signInWithGoogle } from '@/features/auth/lib/googleAuth'
+import GoogleIcon from '@/features/auth/components/GoogleIcon'
 
 const initialMessages = [
   {
@@ -35,6 +42,7 @@ export default function AiChatPanel({ isOpen, onToggle }) {
   const panelRef = useRef(null)
   const dragStateRef = useRef(null)
   const wasOpenRef = useRef(false)
+  const userId = useAuthStore((s) => s.user?.id)
   const [position, setPosition] = useState({ x: PANEL_MARGIN, y: INITIAL_PANEL_Y })
 
   const clampPosition = useCallback((nextPosition) => {
@@ -146,6 +154,7 @@ export default function AiChatPanel({ isOpen, onToggle }) {
       style={{ left: position.x, top: position.y, height: 'min(560px, calc(100% - 7rem))' }}
     >
       <AiChatContent
+        key={userId ?? 'anon'}
         dragHandleProps={{
           onPointerDown: handleDragStart,
           onPointerMove: handleDragMove,
@@ -159,6 +168,8 @@ export default function AiChatPanel({ isOpen, onToggle }) {
 }
 
 export function MobileAiChatSheet({ open, onOpenChange }) {
+  const userId = useAuthStore((s) => s.user?.id)
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -166,7 +177,7 @@ export function MobileAiChatSheet({ open, onOpenChange }) {
         className="w-[min(92vw,380px)] gap-0 overflow-hidden rounded-r-2xl border-r border-gray-200 bg-white/95 p-0 shadow-2xl backdrop-blur-md sm:max-w-[380px]"
       >
         <SheetTitle className="sr-only">Asistente BiT</SheetTitle>
-        <AiChatContent onClose={() => onOpenChange(false)} />
+        <AiChatContent key={userId ?? 'anon'} onClose={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>
   )
@@ -178,17 +189,76 @@ function AiChatContent({ dragHandleProps, onClose }) {
   const removeChatRegion = useMapPageStore((s) => s.removeChatRegion)
   const clusterProperties = useMapPageStore((s) => s.clusterProperties)
   const setHighlightedClusters = useMapPageStore((s) => s.setHighlightedClusters)
-  // Restore the transcript so closing/reopening the panel doesn't wipe it.
-  const [messages, setMessages] = useState(() => loadChatMessages(initialMessages))
+  const user = useAuthStore((s) => s.user)
+  const [messages, setMessages] = useState(initialMessages)
   const [inputValue, setInputValue] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [conversations, setConversations] = useState([])
+  const [conversationId, setConversationId] = useState(null)
   const inputId = useId()
   const scrollAreaRef = useRef(null)
   const chatRegions = getChatContextRegions(chatContext)
 
+  const refreshConversations = useCallback(async () => {
+    try {
+      const data = await getConversations()
+      setConversations(data.conversations ?? [])
+      return data.conversations ?? []
+    } catch (err) {
+      console.warn('GET /conversations failed:', err)
+      return []
+    }
+  }, [])
+
+  const selectConversation = useCallback(async (id) => {
+    setConversationId(id)
+    try {
+      const data = await getConversationMessages(id)
+      const turns = (data.messages ?? []).map((m) => ({
+        id: `srv-${m.id}`,
+        role: m.role,
+        content: m.content,
+      }))
+      setMessages(turns.length > 0 ? turns : initialMessages)
+    } catch (err) {
+      console.warn('GET /conversations/:id/messages failed:', err)
+      setMessages(initialMessages)
+    }
+  }, [])
+
+  const startNewConversation = useCallback(() => {
+    setConversationId(null)
+    setMessages(initialMessages)
+  }, [])
+
+  const handleDeleteConversation = useCallback(async () => {
+    if (!conversationId) return
+    try {
+      await deleteConversation(conversationId)
+      setConversations((current) => current.filter((c) => c.id !== conversationId))
+      startNewConversation()
+    } catch (err) {
+      console.warn('DELETE /conversations/:id failed:', err)
+    }
+  }, [conversationId, startNewConversation])
+
+  // The transcript lives server-side per conversation: on login, load the
+  // thread list and resume the most recent one. Logout/user switches remount
+  // this component (keyed by user id in the parents), so state never leaks
+  // between accounts.
   useEffect(() => {
-    saveChatMessages(messages)
-  }, [messages])
+    if (!user) return undefined
+
+    let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState runs after the fetch resolves, never synchronously
+    refreshConversations().then((list) => {
+      if (active && list[0]?.id) selectConversation(list[0].id)
+    })
+    return () => {
+      active = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   useEffect(() => {
     const scrollArea = scrollAreaRef.current
@@ -231,13 +301,24 @@ function AiChatContent({ dragHandleProps, onClose }) {
         .map((m) => ({ role: m.role, content: m.content }))
 
       try {
-        const res = await askTerritorio(trimmedMessage, buildBackendChatContext(chatContext), history)
+        const res = await askTerritorio(
+          trimmedMessage,
+          buildBackendChatContext(chatContext),
+          history,
+          conversationId,
+        )
         const highlightedClusters = res.clusters_destacados?.length
           ? res.clusters_destacados
           : requestedClusters
 
         // Sync the map: highlight (or clear) the zones the AI mentions
         setHighlightedClusters(highlightedClusters)
+
+        // First message of a fresh chat: the backend created the thread.
+        if (res.conversation_id && res.conversation_id !== conversationId) {
+          setConversationId(res.conversation_id)
+          refreshConversations()
+        }
 
         setMessages((currentMessages) => [
           ...currentMessages,
@@ -265,7 +346,16 @@ function AiChatContent({ dragHandleProps, onClose }) {
         setIsTyping(false)
       }
     },
-    [inputValue, isTyping, messages, chatContext, clusterProperties, setHighlightedClusters],
+    [
+      inputValue,
+      isTyping,
+      messages,
+      conversationId,
+      refreshConversations,
+      chatContext,
+      clusterProperties,
+      setHighlightedClusters,
+    ],
   )
 
   const handleInputKeyDown = (event) => {
@@ -311,57 +401,139 @@ function AiChatContent({ dragHandleProps, onClose }) {
         </button>
       </div>
 
-      <ModelSelector />
+      {!user ? (
+        <LoginRequired />
+      ) : (
+        <>
+          <ModelSelector />
 
-      {chatRegions.length > 0 || chatContext?.ecgi ? (
-        <ChatContextBar
-          regions={chatRegions}
-          ecgi={chatContext?.ecgi}
-          onRemoveRegion={removeChatRegion}
-          onClear={clearChatContext}
-        />
-      ) : null}
-
-      <div
-        ref={scrollAreaRef}
-        className="sidebar-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-4"
-        aria-live="polite"
-        aria-label="Conversación con el asistente BiT"
-      >
-        {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
-        ))}
-
-        {isTyping ? <TypingIndicator /> : null}
-      </div>
-
-      <div className="shrink-0 border-t border-gray-100 p-3">
-        <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2">
-          <label htmlFor={inputId} className="sr-only">
-            Mensaje para el asistente BiT
-          </label>
-          <input
-            id={inputId}
-            type="text"
-            value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
-            onKeyDown={handleInputKeyDown}
-            placeholder="Preguntale al territorio..."
-            className="min-w-0 flex-1 bg-transparent text-xs text-gray-600 placeholder-gray-400 outline-none"
-            disabled={isTyping}
+          <ConversationsBar
+            conversations={conversations}
+            conversationId={conversationId}
+            onSelect={selectConversation}
+            onNew={startNewConversation}
+            onDelete={handleDeleteConversation}
           />
-          <button
-            type="button"
-            onClick={() => handleSendMessage()}
-            disabled={!inputValue.trim() || isTyping}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white disabled:cursor-not-allowed disabled:opacity-60"
-            style={{ backgroundColor: 'var(--bit-purple-deep)' }}
-            aria-label="Enviar pregunta"
+
+          {chatRegions.length > 0 || chatContext?.ecgi ? (
+            <ChatContextBar
+              regions={chatRegions}
+              ecgi={chatContext?.ecgi}
+              onRemoveRegion={removeChatRegion}
+              onClear={clearChatContext}
+            />
+          ) : null}
+
+          <div
+            ref={scrollAreaRef}
+            className="sidebar-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-4"
+            aria-live="polite"
+            aria-label="Conversación con el asistente BiT"
           >
-            <Send className="h-3 w-3" />
-          </button>
-        </div>
+            {messages.map((message) => (
+              <ChatMessage key={message.id} message={message} />
+            ))}
+
+            {isTyping ? <TypingIndicator /> : null}
+          </div>
+
+          <div className="shrink-0 border-t border-gray-100 p-3">
+            <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2">
+              <label htmlFor={inputId} className="sr-only">
+                Mensaje para el asistente BiT
+              </label>
+              <input
+                id={inputId}
+                type="text"
+                value={inputValue}
+                onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={handleInputKeyDown}
+                placeholder="Preguntale al territorio..."
+                className="min-w-0 flex-1 bg-transparent text-xs text-gray-600 placeholder-gray-400 outline-none"
+                disabled={isTyping}
+              />
+              <button
+                type="button"
+                onClick={() => handleSendMessage()}
+                disabled={!inputValue.trim() || isTyping}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ backgroundColor: 'var(--bit-purple-deep)' }}
+                aria-label="Enviar pregunta"
+              >
+                <Send className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Login wall: the chat spends AI credits and personalizes per user. */
+function LoginRequired() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-50">
+        <Lock className="h-4 w-4 text-purple-600" aria-hidden="true" />
       </div>
+      <p className="text-sm font-semibold text-gray-800">Iniciá sesión para hablar con BiT</p>
+      <p className="max-w-[260px] text-xs text-gray-500">
+        El asistente guarda tus conversaciones y personaliza las respuestas con tu historial.
+      </p>
+      <button
+        type="button"
+        onClick={signInWithGoogle}
+        className="mt-1 flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+      >
+        <GoogleIcon className="h-4 w-4" />
+        Continuar con Google
+      </button>
+    </div>
+  )
+}
+
+/** Thread switcher: resume, start or delete conversations (ChatGPT-style). */
+function ConversationsBar({ conversations, conversationId, onSelect, onNew, onDelete }) {
+  const selectId = useId()
+
+  return (
+    <div className="flex items-center gap-1.5 border-b border-gray-100 px-4 py-2">
+      <label htmlFor={selectId} className="sr-only">
+        Conversaciones
+      </label>
+      <select
+        id={selectId}
+        value={conversationId ?? ''}
+        onChange={(event) => (event.target.value ? onSelect(event.target.value) : onNew())}
+        className="min-w-0 flex-1 cursor-pointer rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-700 outline-none transition-colors hover:border-purple-300 focus:border-purple-400"
+      >
+        <option value="">Nueva conversación…</option>
+        {conversations.map((conversation) => (
+          <option key={conversation.id} value={conversation.id}>
+            {conversation.title}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={onNew}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+        aria-label="Nueva conversación"
+        title="Nueva conversación"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={!conversationId}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Borrar conversación"
+        title="Borrar conversación"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
     </div>
   )
 }

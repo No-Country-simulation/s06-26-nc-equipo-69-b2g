@@ -8,7 +8,7 @@ import { getSelectedModel } from './modelStore'
  *
  * Response: { respuesta_ia, clusters_destacados, datos_extra, fuentes }
  */
-export function askTerritorio(prompt, context = {}, history = []) {
+export function askTerritorio(prompt, context = {}, history = [], conversationId = null) {
   const regions = [...new Set([...(context.regions ?? []), context.region].filter(Boolean))]
   const model = getSelectedModel()
 
@@ -20,6 +20,9 @@ export function askTerritorio(prompt, context = {}, history = []) {
     ...(model ? { model } : {}),
     // Last visible turns so the AI keeps the thread of this session.
     ...(history.length > 0 ? { history } : {}),
+    // Thread id: the backend appends the turns to this conversation (or
+    // creates one and returns conversation_id when absent).
+    ...(conversationId ? { conversationId } : {}),
     language: 'es',
   })
 }

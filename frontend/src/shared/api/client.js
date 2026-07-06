@@ -43,6 +43,21 @@ export async function apiGet(path, params) {
   return res.json()
 }
 
+export async function apiDelete(path) {
+  const url = `${BASE_URL}${path}`
+
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  if (!res.ok) {
+    throw new ApiError(`DELETE ${path} failed with status ${res.status}`, res.status, url)
+  }
+
+  return res.json()
+}
+
 export async function apiPost(path, body) {
   const url = `${BASE_URL}${path}`
 
