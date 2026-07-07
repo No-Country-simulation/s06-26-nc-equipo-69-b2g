@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { FileDown, Bot, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import ClusterFilters from '../components/ClusterFilters'
 import ClusterTable from '../components/ClusterTable'
 import AIResponse from '../components/AIResponse'
 import { askTerritorio } from '@/features/ai-chat/api/datosService'
+import { getClusters } from '@/features/map-page/api/mapaService'
+import { exportComparisonReport } from '@/shared/lib/pdfReport'
 
 function formatClusterName(name) {
   return name
@@ -31,6 +34,7 @@ export default function ClusterComparisonPage() {
   const [showResponse, setShowResponse] = useState(false)
   const [customPrompt, setCustomPrompt] = useState('')
   const [loadingMessage, setLoadingMessage] = useState('')
+  const [exportingPdf, setExportingPdf] = useState(false)
   const loadingTimerRef = useRef(null)
 
   useEffect(() => {
@@ -117,6 +121,37 @@ export default function ClusterComparisonPage() {
     }
   }
 
+  const handleExportPdf = async () => {
+    if (exportingPdf) return
+    setExportingPdf(true)
+
+    try {
+      const geojson = await getClusters()
+      const all = (geojson.features || []).map((f) => ({ ...f.properties }))
+
+      let filtered = all.filter((c) => activeFilters.includes(c.nivel_riesgo))
+      if (search.trim()) {
+        const term = search.toLowerCase()
+        filtered = filtered.filter(
+          (c) => c.cluster.toLowerCase().includes(term) || (c.municipio || '').toLowerCase().includes(term)
+        )
+      }
+
+      const rows = selected.length > 0 ? filtered.filter((c) => selected.includes(c.cluster)) : filtered
+      rows.sort((a, b) => (b.score_riesgo ?? 0) - (a.score_riesgo ?? 0))
+
+      exportComparisonReport({
+        clusters: rows,
+        aiResponse: showResponse ? aiResponse : null,
+      })
+    } catch (err) {
+      console.error('Error exporting comparison report:', err)
+      toast.error('No se pudo generar el reporte')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   const selectedNames = selected
     .map((n) => formatClusterName(n))
     .slice(0, 3)
@@ -167,9 +202,13 @@ export default function ClusterComparisonPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button className="inline-flex items-center gap-1.5 rounded-lg border border-[#564C8E]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#564C8E] transition-colors hover:bg-[#564C8E]/5">
-                <FileDown className="h-3.5 w-3.5" />
-                Exportar PDF
+              <button
+                onClick={handleExportPdf}
+                disabled={exportingPdf}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#564C8E]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#564C8E] transition-colors hover:bg-[#564C8E]/5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                {exportingPdf ? 'Generando...' : 'Exportar PDF'}
               </button>
               <button
                 onClick={() => handleAskAI()}

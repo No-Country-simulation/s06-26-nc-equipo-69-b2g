@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { GripHorizontal, Lock, Plus, Send, Sparkles, Trash2, X, MapPin, RadioTower } from 'lucide-react'
+import { GripHorizontal, Lock, Plus, Send, Sparkles, Trash2, X, MapPin, RadioTower, FileDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { Sheet, SheetContent, SheetTitle } from '@/shared/components/ui/sheet'
 import { askTerritorio } from '../api/datosService'
+import { exportChatResponse } from '@/shared/lib/pdfReport'
 import {
   getConversations,
   getConversationMessages,
@@ -430,8 +432,12 @@ function AiChatContent({ dragHandleProps, onClose }) {
             aria-live="polite"
             aria-label="Conversación con el asistente BiT"
           >
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                question={message.role === 'assistant' ? findPrecedingQuestion(messages, index) : null}
+              />
             ))}
 
             {isTyping ? <TypingIndicator /> : null}
@@ -538,8 +544,23 @@ function ConversationsBar({ conversations, conversationId, onSelect, onNew, onDe
   )
 }
 
-function ChatMessage({ message }) {
+function ChatMessage({ message, question }) {
   const isUser = message.role === 'user'
+  const hasExportableData = !isUser && ((message.fuentes?.length > 0) || (message.destacados?.length > 0))
+
+  const handleExport = () => {
+    try {
+      exportChatResponse({
+        question: question ?? '',
+        answer: message.content,
+        clusters: message.destacados ?? [],
+        fuentes: message.fuentes ?? [],
+      })
+    } catch (err) {
+      console.error('Error exporting chat response:', err)
+      toast.error('No se pudo generar el reporte')
+    }
+  }
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -551,7 +572,22 @@ function ChatMessage({ message }) {
         }`}
         style={isUser ? { backgroundColor: 'var(--bit-purple-deep)' } : undefined}
       >
-        {!isUser ? <p className="mb-2 text-[10px] font-semibold text-gray-700">Asistente BiT</p> : null}
+        {!isUser ? (
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold text-gray-700">Asistente BiT</p>
+            {hasExportableData ? (
+              <button
+                type="button"
+                onClick={handleExport}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Exportar respuesta"
+                title="Exportar respuesta"
+              >
+                <FileDown className="h-3 w-3" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {isUser ? <p>{message.content}</p> : <AssistantText content={message.content} />}
 
         {message.destacados?.length > 0 ? (
@@ -730,6 +766,14 @@ function ContextChip({ icon, label, onRemove, removeLabel }) {
 
 function stripMarkdown(text) {
   return text.replace(/\*\*/g, '').trim()
+}
+
+/** Finds the user question that led to the assistant message at `index`, for pairing in exports. */
+function findPrecedingQuestion(messages, index) {
+  for (let i = index - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return messages[i].content
+  }
+  return ''
 }
 
 function parseBullet(text) {

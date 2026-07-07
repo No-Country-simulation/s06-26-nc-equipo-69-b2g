@@ -5,6 +5,7 @@ import MethodologyPage from '@/features/methodology-page/MethodologyPage'
 import MapPage from '@/features/map-page/pages/MapPage'
 import ClusterComparisonPage from '@/features/cluster-comparison/pages/ClusterComparisonPage'
 import { useAuthListener } from '@/features/auth'
+import { Toaster } from '@/shared/components/ui/sonner'
 import '../App.css'
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
           <Route path="/comparativa" element={<ClusterComparisonPage />} />
         </Routes>
       </div>
+      <Toaster position="top-right" richColors />
     </BrowserRouter>
   )
 }

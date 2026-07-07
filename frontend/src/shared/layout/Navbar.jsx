@@ -1,7 +1,11 @@
-import { BarChart3, BookOpen, Download, Map, Menu } from 'lucide-react'
+import { useState } from 'react'
+import { BarChart3, BookOpen, Download, Loader2, Map, Menu } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/shared/components/ui/sheet'
 import { AuthControl } from '@/features/auth'
+import { getClusters } from '@/features/map-page/api/mapaService'
+import { exportTerritorialReport } from '@/shared/lib/pdfReport'
 
 const navLinks = [
   { label: 'Mapa', icon: Map, path: '/mapa' },
@@ -11,6 +15,23 @@ const navLinks = [
 
 export default function Navbar() {
   const { pathname } = useLocation()
+  const [exportingReport, setExportingReport] = useState(false)
+
+  const handleExportReport = async () => {
+    if (exportingReport) return
+    setExportingReport(true)
+    try {
+      const geojson = await getClusters()
+      const clusters = (geojson.features || []).map((f) => ({ ...f.properties }))
+      exportTerritorialReport(clusters)
+    } catch (err) {
+      console.error('Error exporting territorial report:', err)
+      toast.error('No se pudo generar el reporte')
+    } finally {
+      setExportingReport(false)
+    }
+  }
+
   return (
     <nav
       className="flex h-14 shrink-0 items-center justify-between px-3 md:h-12 md:px-4"
@@ -53,9 +74,14 @@ export default function Navbar() {
 
       {/* Right: Export + Avatar – desktop */}
       <div className="hidden items-center gap-3 md:flex">
-        <button className="flex items-center gap-1.5 rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/20">
-          <Download className="h-3.5 w-3.5" />
-          Exportar reporte
+        <button
+          type="button"
+          onClick={handleExportReport}
+          disabled={exportingReport}
+          className="flex items-center gap-1.5 rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {exportingReport ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+          {exportingReport ? 'Generando...' : 'Exportar reporte'}
         </button>
         <AuthControl />
       </div>
@@ -115,11 +141,13 @@ export default function Navbar() {
               <SheetClose asChild>
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-colors hover:opacity-90"
+                  onClick={handleExportReport}
+                  disabled={exportingReport}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                   style={{ backgroundColor: '#2C2750' }}
                 >
-                  <Download className="h-4 w-4" />
-                  Exportar reporte
+                  {exportingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  {exportingReport ? 'Generando...' : 'Exportar reporte'}
                 </button>
               </SheetClose>
               <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
