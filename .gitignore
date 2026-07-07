@@ -20,9 +20,12 @@ coverage/
 
 # Local tooling and AI artifacts
 .atl/
+docs-spec/
 .turbo/
 **/.turbo/
 mcp.json
+.mcp.json
+opencode.json
 
 # Logs
 *.log
@@ -40,3 +43,6 @@ node_modules
 
 # CLI tools
 .gh-cli/
+
+# Vercel
+.vercel/

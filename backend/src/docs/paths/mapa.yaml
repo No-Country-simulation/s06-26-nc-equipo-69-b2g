@@ -1,0 +1,367 @@
+paths:
+  /api/v1/mapa/clusters:
+    get:
+      tags:
+        - Mapa
+      summary: Clusters con score de riesgo (capa circle)
+      description: >
+        Devuelve los 27 clusters de la región metropolitana de Florianópolis con su
+        score de riesgo como GeoJSON FeatureCollection de puntos. Es la capa principal
+        del mapa. Coordenadas en orden Mapbox [lon, lat]. Al hacer clic en un feature,
+        el frontend extrae properties.cluster y lo envía como "region" a POST /datos.
+      operationId: getMapaClusters
+      responses:
+        '200':
+          description: FeatureCollection de puntos con propiedades de riesgo por cluster.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: FeatureCollection
+                  features:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          example: Feature
+                        geometry:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              example: Point
+                            coordinates:
+                              type: array
+                              items:
+                                type: number
+                              example: [-48.78, -27.71]
+                        properties:
+                          type: object
+                          properties:
+                            cluster:
+                              type: string
+                              example: SANTO_AMARO
+                            municipio:
+                              type: string
+                              example: Santo Amaro
+                            nivel_riesgo:
+                              type: string
+                              enum: [ALTO, MEDIO, BAJO]
+                            score_riesgo:
+                              type: number
+                              example: 0.895
+                            infra:
+                              type: number
+                            concentracion:
+                              type: number
+                            vulnerabilidad:
+                              type: number
+                            n_usuarios_total:
+                              type: integer
+                              example: 3236
+                            pct_legacy_tech:
+                              type: number
+                            pct_renta_baja:
+                              type: number
+                            congestion_media:
+                              type: number
+                            sin_cobertura:
+                              type: boolean
+
+  /api/v1/mapa/concentracao:
+    get:
+      tags:
+        - Mapa
+      summary: Concentración de usuarios por antena (capa heatmap)
+      description: >
+        Devuelve la concentración de usuarios por antena agregada server-side por
+        período del día (GROUP BY en Postgres — nunca expone las filas crudas de
+        tensor_concentracao). Alimenta el heatmap del mapa.
+      operationId: getMapaConcentracao
+      parameters:
+        - in: query
+          name: periodo
+          required: false
+          schema:
+            type: string
+            enum: [MADRUGADA, MANHA, TARDE, NOITE]
+            default: MANHA
+          description: Período del día a consultar.
+      responses:
+        '200':
+          description: FeatureCollection de puntos con peso para el heatmap.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: FeatureCollection
+                  metadata:
+                    type: object
+                    properties:
+                      periodo:
+                        type: string
+                        example: MANHA
+                  features:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          example: Feature
+                        geometry:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              example: Point
+                            coordinates:
+                              type: array
+                              items:
+                                type: number
+                              example: [-48.546242, -27.60395]
+                        properties:
+                          type: object
+                          properties:
+                            ecgi:
+                              type: string
+                              example: '7240501005373318'
+                            cluster:
+                              type: string
+                              example: CENTRO_HISTORICO
+                            municipio:
+                              type: string
+                              example: Florianopolis
+                            periodo:
+                              type: string
+                              example: MANHA
+                            n_usuarios:
+                              type: integer
+                              example: 62834
+                            congestion_media:
+                              type: number
+                              example: 0.35
+                            drop_pct_media:
+                              type: number
+                              example: 0.069
+        '400':
+          description: Valor de periodo inválido.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'periodo must be one of: MADRUGADA, MANHA, TARDE, NOITE'
+
+  /api/v1/mapa/od:
+    get:
+      tags:
+        - Mapa
+      summary: Flujos origen-destino entre clusters (capa line)
+      description: >
+        Devuelve los flujos de movilidad entre clusters distintos (mesmo_cluster = 0)
+        como LineStrings origen → destino, ordenados por n_viagens descendente
+        (máx. 500 features). Coordenadas en orden Mapbox [lon, lat].
+      operationId: getMapaOd
+      responses:
+        '200':
+          description: FeatureCollection de LineStrings con volumen de viajes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: FeatureCollection
+                  features:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          example: Feature
+                        geometry:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              example: LineString
+                            coordinates:
+                              type: array
+                              items:
+                                type: array
+                                items:
+                                  type: number
+                              example: [[-48.585, -27.588], [-48.548, -27.5954]]
+                        properties:
+                          type: object
+                          properties:
+                            cluster_origem:
+                              type: string
+                              example: ESTREITO_CAPOEIRAS
+                            cluster_destino:
+                              type: string
+                              example: CBD_BEIRAMAR
+                            municipio_origem:
+                              type: string
+                              example: Florianópolis
+                            municipio_destino:
+                              type: string
+                              example: Florianópolis
+                            n_usuarios:
+                              type: integer
+                              example: 24705
+                            n_viagens:
+                              type: integer
+                              example: 28288
+                            dist_media_km:
+                              type: number
+                              example: 3.74
+                            periodo_predominante:
+                              type: string
+                              enum: [MADRUGADA, MANHA, TARDE, NOITE]
+                              example: NOITE
+
+  /api/v1/mapa/equipamentos:
+    get:
+      tags:
+        - Mapa
+      summary: Equipamientos públicos para renderizar en el mapa
+      description: >
+        Devuelve instituciones y servicios públicos cercanos a Florianópolis como
+        GeoJSON FeatureCollection de puntos, listos para renderizar en Mapbox.
+        Las categorías permiten filtrar capas de salud, educación, asistencia y gobierno.
+      operationId: getMapaEquipamentos
+      parameters:
+        - in: query
+          name: categoria
+          required: false
+          schema:
+            type: string
+            enum: [salud, educacion, asistencia, gobierno]
+          description: Categoría de equipamiento público a filtrar.
+      responses:
+        '200':
+          description: FeatureCollection de puntos con equipamientos públicos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: FeatureCollection
+                  features:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          example: Feature
+                        geometry:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              example: Point
+                            coordinates:
+                              type: array
+                              items:
+                                type: number
+                              example: [-48.548, -27.602]
+                        properties:
+                          type: object
+                          properties:
+                            nome:
+                              type: string
+                              example: Escola Municipal Centro
+                            tipo:
+                              type: string
+                              example: school
+                            categoria:
+                              type: string
+                              enum: [salud, educacion, asistencia, gobierno]
+                              example: educacion
+                            source:
+                              type: string
+                              example: osm
+                            source_id:
+                              type: string
+                              example: way/456
+        '400':
+          description: Categoría inválida.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'categoria debe ser una de: salud, educacion, asistencia, gobierno'
+
+  /api/v1/mapa/demografia:
+    get:
+      tags:
+        - Mapa
+      summary: Perfil demográfico agregado por cluster
+      description: >
+        Devuelve el perfil demográfico de los 27 clusters, agregado server-side desde
+        assinantes (nunca se exponen filas individuales). Un solo fetch: el frontend lo
+        cachea y resuelve el popup de cada cluster con properties.cluster como clave.
+      operationId: getMapaDemografia
+      responses:
+        '200':
+          description: Perfiles demográficos indexados por cluster.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metadata:
+                    type: object
+                    properties:
+                      total_assinantes:
+                        type: integer
+                        example: 200000
+                      n_clusters:
+                        type: integer
+                        example: 27
+                  clusters:
+                    type: object
+                    description: Mapa cluster → perfil demográfico.
+                    additionalProperties:
+                      type: object
+                      properties:
+                        n_assinantes:
+                          type: integer
+                          example: 3236
+                        income:
+                          type: object
+                          description: Distribución de renta (A=alta … D=baja).
+                          example: { A: 247, B: 880, C: 1425, D: 684 }
+                        age_groups:
+                          type: object
+                          description: Distribución por grupo etario.
+                          example:
+                            { '18-24': 642, '25-34': 646, '35-44': 672, '45-54': 671, '55+': 605 }
+                        mobility:
+                          type: object
+                          description: Patrón de movilidad de los residentes.
+                          example: { BAIXA: 1142, MODERADA: 1435, INTENSA: 659 }
+                        pct_flagship:
+                          type: number
+                          description: Proporción de dispositivos de gama alta (proxy socioeconómico).
+                          example: 0.1706
