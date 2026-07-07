@@ -24,6 +24,7 @@ docs-spec/
 .turbo/
 **/.turbo/
 mcp.json
+.mcp.json
 opencode.json
 
 # Logs
@@ -42,3 +43,6 @@ node_modules
 
 # CLI tools
 .gh-cli/
+
+# Vercel
+.vercel/
