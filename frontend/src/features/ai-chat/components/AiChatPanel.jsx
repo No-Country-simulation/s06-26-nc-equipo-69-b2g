@@ -199,6 +199,7 @@ function AiChatContent({ dragHandleProps, onClose }) {
   const [conversationId, setConversationId] = useState(null)
   const inputId = useId()
   const scrollAreaRef = useRef(null)
+  const lastMessageRef = useRef(null)
   const chatRegions = getChatContextRegions(chatContext)
 
   const refreshConversations = useCallback(async () => {
@@ -262,10 +263,29 @@ function AiChatContent({ dragHandleProps, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
+  // Long answers must be read from the beginning: when an assistant message
+  // arrives, align its TOP with the viewport instead of jumping to the end.
+  // User messages and the typing indicator keep the scroll pinned to the
+  // bottom, as a chat is expected to do. Scrolling is computed against the
+  // panel's own scroll area so ancestor containers (page, mobile sheet)
+  // never move.
   useEffect(() => {
     const scrollArea = scrollAreaRef.current
 
     if (!scrollArea) {
+      return
+    }
+
+    const lastMessage = messages[messages.length - 1]
+    const lastMessageEl = lastMessageRef.current
+
+    if (!isTyping && lastMessage?.role === 'assistant' && lastMessage.id !== 'welcome' && lastMessageEl) {
+      const top =
+        lastMessageEl.getBoundingClientRect().top -
+        scrollArea.getBoundingClientRect().top +
+        scrollArea.scrollTop -
+        8
+      scrollArea.scrollTo({ top, behavior: 'smooth' })
       return
     }
 
@@ -435,6 +455,7 @@ function AiChatContent({ dragHandleProps, onClose }) {
             {messages.map((message, index) => (
               <ChatMessage
                 key={message.id}
+                ref={index === messages.length - 1 ? lastMessageRef : null}
                 message={message}
                 question={message.role === 'assistant' ? findPrecedingQuestion(messages, index) : null}
               />
@@ -544,7 +565,7 @@ function ConversationsBar({ conversations, conversationId, onSelect, onNew, onDe
   )
 }
 
-function ChatMessage({ message, question }) {
+function ChatMessage({ message, question, ref }) {
   const isUser = message.role === 'user'
   const hasExportableData = !isUser && ((message.fuentes?.length > 0) || (message.destacados?.length > 0))
 
@@ -563,7 +584,7 @@ function ChatMessage({ message, question }) {
   }
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div ref={ref} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-[88%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
           isUser

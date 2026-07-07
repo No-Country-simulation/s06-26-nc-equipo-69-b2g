@@ -49,6 +49,15 @@ export default function ClusterComparisonPage() {
   const [loadingMessage, setLoadingMessage] = useState('')
   const [exportingPdf, setExportingPdf] = useState(false)
   const loadingTimerRef = useRef(null)
+  const responseRef = useRef(null)
+
+  // The result renders below the table: when a comparison fires, bring the
+  // response container into view so the user never has to hunt for it.
+  useEffect(() => {
+    if (showResponse && aiLoading) {
+      responseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [showResponse, aiLoading])
 
   useEffect(() => {
     if (!aiLoading) {
@@ -186,6 +195,41 @@ export default function ClusterComparisonPage() {
             onSearchChange={setSearch}
             onClearAll={handleClearAll}
           />
+
+          {/* Action bar above the table so the primary CTA is visible without scrolling */}
+          <div className="mb-4 rounded-xl border border-[#E2E4DF] bg-[#F9FAF8] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-gray-900">
+                  {selected.length > 0
+                    ? `${selected.length} ${selected.length === 1 ? 'zona seleccionada' : 'zonas seleccionadas'}`
+                    : 'Ninguna zona seleccionada'}
+                </span>
+                {selected.length > 0 && (
+                  <>
+                    <span className="text-sm text-gray-400">·</span>
+                    <span className="text-sm text-gray-400">{selectedNames}{remaining}</span>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleAskAI()}
+                  disabled={selected.length === 0 || aiLoading}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: '#564C8E' }}
+                >
+                  {aiLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Bot className="h-3.5 w-3.5" />
+                  )}
+                  {aiLoading ? loadingMessage : 'Comparar con IA'}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <ClusterTable
             selected={selected}
             onToggle={handleToggle}
@@ -196,41 +240,8 @@ export default function ClusterComparisonPage() {
           />
         </section>
 
-        <div className="mt-3 rounded-xl border border-[#E2E4DF] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(20,30,35,0.07)]">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-900">
-                {selected.length > 0
-                  ? `${selected.length} ${selected.length === 1 ? 'zona seleccionada' : 'zonas seleccionadas'}`
-                  : 'Ninguna zona seleccionada'}
-              </span>
-              {selected.length > 0 && (
-                <>
-                  <span className="text-sm text-gray-400">·</span>
-                  <span className="text-sm text-gray-400">{selectedNames}{remaining}</span>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleAskAI()}
-                disabled={selected.length === 0 || aiLoading}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#564C8E' }}
-              >
-                {aiLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Bot className="h-3.5 w-3.5" />
-                )}
-                {aiLoading ? loadingMessage : 'Comparar con IA'}
-              </button>
-            </div>
-          </div>
-        </div>
-
         {showResponse && (
-          <div className="mt-3">
+          <div ref={responseRef} className="mt-3 scroll-mt-4">
             <AIResponse
               response={aiResponse}
               loading={aiLoading}
