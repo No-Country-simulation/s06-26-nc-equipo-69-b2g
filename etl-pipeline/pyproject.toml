@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "appbit-cdrview-pipeline"
+version = "0.1.0"
+description = "Python data pipeline for CDRView ingestion and regional risk scoring"
+authors = [{ name = "App BiT Hackathon" }]
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "psycopg2-binary>=2.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+etl-run = "scripts.run_etl:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

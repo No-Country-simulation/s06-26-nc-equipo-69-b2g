@@ -20,9 +20,11 @@ coverage/
 
 # Local tooling and AI artifacts
 .atl/
+docs-spec/
 .turbo/
 **/.turbo/
 mcp.json
+opencode.json
 
 # Logs
 *.log

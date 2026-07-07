@@ -1,0 +1,41 @@
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Data files
+data/
+*.csv
+
+# Environment
+.env
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Logs
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

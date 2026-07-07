@@ -1,0 +1,106 @@
+paths:
+  /api/v1/datos:
+    post:
+      tags:
+        - Datos
+      summary: Consulta analítica con IA (RAG)
+      description: >
+        Recibe una consulta en lenguaje natural del gestor público y devuelve una
+        respuesta fundamentada por IA. Combina datos estructurados agregados
+        (riesgo por región, concentración/calidad de red, antenas) con conocimiento
+        de dominio recuperado por búsqueda semántica (RAG sobre documents_vectors).
+      operationId: postDatos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+              properties:
+                prompt:
+                  type: string
+                  description: Consulta en lenguaje natural.
+                  example: ¿Qué regiones tienen mayor riesgo de exclusión digital y por qué?
+                region:
+                  type: string
+                  description: >
+                    Cluster/zona a filtrar (opcional). Si se omite, considera todas.
+                    Cuando está presente, el contexto de la IA incluye además el perfil
+                    demográfico agregado del cluster.
+                  example: CBD_BEIRAMAR
+                ecgi:
+                  type: string
+                  description: >
+                    Antena a filtrar (opcional, click en antena del mapa). Más específico
+                    que region para los datos de red; tiene prioridad sobre region al
+                    filtrar tensor_concentracao.
+                  example: '7240501005373318'
+                indicator:
+                  type: string
+                  description: Indicador de interés (opcional).
+                  example: Conectividad
+                language:
+                  type: string
+                  description: Idioma de la respuesta.
+                  default: es
+                  example: es
+      responses:
+        '200':
+          description: Respuesta de la IA con datos y fuentes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - respuesta_ia
+                  - datos_extra
+                  - fuentes
+                properties:
+                  respuesta_ia:
+                    type: string
+                    description: Respuesta del agente, fundamentada en datos y contexto.
+                  clusters_destacados:
+                    type: array
+                    description: >
+                      Clusters que la IA destaca en su análisis, validados contra
+                      riesgo_regiao. El frontend los usa para resaltar features en el
+                      mapa (Flujo B chat → mapa).
+                    items:
+                      type: string
+                    example:
+                      - SANTO_AMARO
+                      - ANTONIO_CARLOS
+                  datos_extra:
+                    type: object
+                    properties:
+                      regiones_riesgo:
+                        type: integer
+                        example: 27
+                      antenas_encontradas:
+                        type: integer
+                        example: 50
+                      chunks_contexto:
+                        type: integer
+                        description: Cantidad de chunks de conocimiento recuperados por RAG.
+                        example: 5
+                  fuentes:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      - riesgo_regiao
+                      - tensor_concentracao
+                      - antenas_flp
+                      - score_metodologia
+        '400':
+          description: Falta el campo prompt.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: prompt is required
