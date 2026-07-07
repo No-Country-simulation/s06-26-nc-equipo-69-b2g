@@ -1,4 +1,4 @@
-import { Loader2, AlertCircle, X, Database, Layers, FileText } from 'lucide-react'
+import { Loader2, AlertCircle, X, Database, Layers, FileText, FileDown } from 'lucide-react'
 
 function parseInlineMarkdown(text) {
   if (!text) return null
@@ -86,7 +86,7 @@ function formatClusterName(name) {
     .join(' · ')
 }
 
-export default function AIResponse({ response, loading, error, selectedClusters, onClose }) {
+export default function AIResponse({ response, loading, error, selectedClusters, onClose, onExport, exporting = false }) {
   if (loading) {
     return (
       <div className="rounded-xl border border-[#E2E4DF] bg-white p-6 shadow-[0_1px_2px_rgba(20,30,35,0.07)]">
@@ -134,9 +134,21 @@ export default function AIResponse({ response, loading, error, selectedClusters,
             <p className="text-[10px] text-gray-400">Análisis basado en datos CDRView y RAG</p>
           </div>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          {onExport && (
+            <button
+              onClick={onExport}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#564C8E]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#564C8E] transition-colors hover:bg-[#564C8E]/5 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+              {exporting ? 'Generando...' : 'Exportar PDF'}
+            </button>
+          )}
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* AI Response Text */}

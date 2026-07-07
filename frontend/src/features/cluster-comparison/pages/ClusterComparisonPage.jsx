@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { FileDown, Bot, Loader2 } from 'lucide-react'
+import { Bot, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import ClusterFilters from '../components/ClusterFilters'
 import ClusterTable from '../components/ClusterTable'
@@ -7,6 +7,8 @@ import AIResponse from '../components/AIResponse'
 import { askTerritorio } from '@/features/ai-chat/api/datosService'
 import { getClusters } from '@/features/map-page/api/mapaService'
 import { exportComparisonReport } from '@/shared/lib/pdfReport'
+import useAuthStore from '@/features/auth/store/useAuthStore'
+import { signInWithGoogle } from '@/features/auth/lib/googleAuth'
 
 function formatClusterName(name) {
   return name
@@ -23,7 +25,16 @@ function buildPrompt(clusterNames) {
   return `Comparar EXACTAMENTE las siguientes ${names.length} zonas: ${names.join(', ')}. Es OBLIGATORIO: (1) responder en el mismo idioma de la pregunta (por defecto español), (2) incluir TODAS las zonas en la tabla comparativa en formato markdown (Score, Usuarios, Infraestructura, Concentración, Vulnerabilidad, Congestión, Nivel de riesgo), (3) usar SIEMPRE los nombres amigables (${names.join(', ')}) en la tabla y en el texto, (4) NO usar identificadores internos como ${clusterNames.join(', ')}. Después de la tabla, incluir un análisis breve de diferencias clave y una sugerencia estratégica.`
 }
 
+/** Maps API failures to user-facing Spanish copy — raw fetch errors never reach the UI. */
+function friendlyAiError(err) {
+  if (err?.status === 401 || err?.status === 403) {
+    return 'Necesitás iniciar sesión para usar la comparación con IA.'
+  }
+  return 'No pudimos generar la comparación en este momento. Intentá de nuevo en unos segundos.'
+}
+
 export default function ClusterComparisonPage() {
+  const user = useAuthStore((s) => s.user)
   const [selected, setSelected] = useState([])
   const [activeFilters, setActiveFilters] = useState(['ALTO', 'MEDIO'])
   const [search, setSearch] = useState('')
@@ -32,7 +43,9 @@ export default function ClusterComparisonPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState(null)
   const [showResponse, setShowResponse] = useState(false)
-  const [customPrompt, setCustomPrompt] = useState('')
+  // Zones snapshotted when the AI request fires, so the PDF export always
+  // matches what the analysis talks about (not the live filter/selection).
+  const [comparedClusters, setComparedClusters] = useState([])
   const [loadingMessage, setLoadingMessage] = useState('')
   const [exportingPdf, setExportingPdf] = useState(false)
   const loadingTimerRef = useRef(null)
@@ -104,18 +117,26 @@ export default function ClusterComparisonPage() {
     const targetClusters = clusters || selected
     if (targetClusters.length === 0) return
 
+    // Auth gate: the AI comparison spends credits and requires a session.
+    // Send the user to Google sign-in instead of letting /datos fail with 401.
+    if (!user) {
+      toast.info('Iniciá sesión con Google para comparar zonas con IA')
+      signInWithGoogle()
+      return
+    }
+
     setAiLoading(true)
     setAiError(null)
     setShowResponse(true)
+    setComparedClusters(targetClusters)
     setLoadingMessage(`Analizando ${targetClusters.length} ${targetClusters.length === 1 ? 'zona' : 'zonas'} seleccionadas...`)
 
     try {
-      const prompt = customPrompt.trim() || buildPrompt(targetClusters)
-      const data = await askTerritorio(prompt, { regions: targetClusters })
+      const data = await askTerritorio(buildPrompt(targetClusters), { regions: targetClusters })
       setAiResponse(data)
     } catch (err) {
       console.error('AI request failed:', err)
-      setAiError(err.message)
+      setAiError(friendlyAiError(err))
     } finally {
       setAiLoading(false)
     }
@@ -127,23 +148,12 @@ export default function ClusterComparisonPage() {
 
     try {
       const geojson = await getClusters()
-      const all = (geojson.features || []).map((f) => ({ ...f.properties }))
-
-      let filtered = all.filter((c) => activeFilters.includes(c.nivel_riesgo))
-      if (search.trim()) {
-        const term = search.toLowerCase()
-        filtered = filtered.filter(
-          (c) => c.cluster.toLowerCase().includes(term) || (c.municipio || '').toLowerCase().includes(term)
-        )
-      }
-
-      const rows = selected.length > 0 ? filtered.filter((c) => selected.includes(c.cluster)) : filtered
+      const rows = (geojson.features || [])
+        .map((f) => ({ ...f.properties }))
+        .filter((c) => comparedClusters.includes(c.cluster))
       rows.sort((a, b) => (b.score_riesgo ?? 0) - (a.score_riesgo ?? 0))
 
-      exportComparisonReport({
-        clusters: rows,
-        aiResponse: showResponse ? aiResponse : null,
-      })
+      exportComparisonReport({ clusters: rows, aiResponse })
     } catch (err) {
       console.error('Error exporting comparison report:', err)
       toast.error('No se pudo generar el reporte')
@@ -203,14 +213,6 @@ export default function ClusterComparisonPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={handleExportPdf}
-                disabled={exportingPdf}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[#564C8E]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#564C8E] transition-colors hover:bg-[#564C8E]/5 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-                {exportingPdf ? 'Generando...' : 'Exportar PDF'}
-              </button>
-              <button
                 onClick={() => handleAskAI()}
                 disabled={selected.length === 0 || aiLoading}
                 className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -221,23 +223,9 @@ export default function ClusterComparisonPage() {
                 ) : (
                   <Bot className="h-3.5 w-3.5" />
                 )}
-                {aiLoading ? loadingMessage : 'Preguntar a la IA'}
+                {aiLoading ? loadingMessage : 'Comparar con IA'}
               </button>
             </div>
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              type="text"
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder="Escribe tu pregunta sobre las zonas seleccionadas..."
-              className="flex-1 rounded-lg border border-[#E2E4DF] bg-[#F5F6F4] px-3 py-1.5 text-xs text-gray-900 placeholder-gray-500 transition-colors focus:border-[#564C8E]/50 focus:bg-white focus:outline-none"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && selected.length > 0) {
-                  handleAskAI()
-                }
-              }}
-            />
           </div>
         </div>
 
@@ -247,11 +235,14 @@ export default function ClusterComparisonPage() {
               response={aiResponse}
               loading={aiLoading}
               error={aiError}
-              selectedClusters={selected}
+              selectedClusters={comparedClusters}
+              onExport={handleExportPdf}
+              exporting={exportingPdf}
               onClose={() => {
                 setShowResponse(false)
                 setAiResponse(null)
                 setAiError(null)
+                setComparedClusters([])
               }}
             />
           </div>
